@@ -368,6 +368,51 @@ app.delete('/api/sequences/:id', (req, res) => {
   }
 });
 
+// ── API: Practice Sessions ────────────────────────────────────────────────────
+app.get('/api/sessions', (req, res) => {
+  try {
+    res.json({ success: true, data: db.listSessions() });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.get('/api/sessions/:id', (req, res) => {
+  try {
+    const s = db.getSession(Number(req.params.id));
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    s.blocks = JSON.parse(s.blocks || '[]');
+    res.json({ success: true, data: s });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/sessions', (req, res) => {
+  try {
+    const { name, team_age, focus, duration_mins, blocks, is_template } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    const s = db.createSession({ name: name.trim(), team_age, focus, duration_mins, blocks, is_template });
+    s.blocks = JSON.parse(s.blocks || '[]');
+    res.status(201).json({ success: true, data: s });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.put('/api/sessions/:id', (req, res) => {
+  try {
+    const { name, team_age, focus, duration_mins, blocks, is_template } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    const s = db.updateSession(Number(req.params.id), { name: name.trim(), team_age, focus, duration_mins, blocks, is_template });
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    s.blocks = JSON.parse(s.blocks || '[]');
+    res.json({ success: true, data: s });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/sessions/:id', (req, res) => {
+  try {
+    const ok = db.deleteSession(Number(req.params.id));
+    if (!ok) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: { id: Number(req.params.id) } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // ── API: Schedules ────────────────────────────────────────────────────────────
 app.get('/api/schedules', (req, res) => {
   try {

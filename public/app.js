@@ -86,6 +86,7 @@ const App = (() => {
     DrillManager.init();
     ScheduleManager.init();
     ImportManager.init();
+    SessionBuilder.init();
   }
 
   // ── Coordinate helpers ─────────────────────────────────────────────────────

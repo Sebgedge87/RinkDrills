@@ -63,6 +63,18 @@ function init() {
       created_at  TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS practice_sessions (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT NOT NULL,
+      team_age     TEXT DEFAULT '',
+      focus        TEXT DEFAULT '',
+      duration_mins INTEGER NOT NULL DEFAULT 60,
+      blocks       TEXT NOT NULL DEFAULT '[]',
+      is_template  INTEGER NOT NULL DEFAULT 0,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
@@ -182,6 +194,42 @@ function setSetting(key, value) {
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(value));
 }
 
+// Practice session helpers
+function listSessions() {
+  return db.prepare('SELECT id, name, team_age, focus, duration_mins, is_template, created_at, updated_at FROM practice_sessions ORDER BY is_template DESC, id DESC').all();
+}
+function getSession(id) {
+  return db.prepare('SELECT * FROM practice_sessions WHERE id = ?').get(id);
+}
+function createSession(data) {
+  const result = db.prepare(`
+    INSERT INTO practice_sessions (name, team_age, focus, duration_mins, blocks, is_template)
+    VALUES (@name, @team_age, @focus, @duration_mins, @blocks, @is_template)
+  `).run({
+    name: data.name, team_age: data.team_age || '', focus: data.focus || '',
+    duration_mins: data.duration_mins || 60,
+    blocks: JSON.stringify(data.blocks || []),
+    is_template: data.is_template ? 1 : 0
+  });
+  return getSession(result.lastInsertRowid);
+}
+function updateSession(id, data) {
+  const result = db.prepare(`
+    UPDATE practice_sessions SET name=@name, team_age=@team_age, focus=@focus,
+    duration_mins=@duration_mins, blocks=@blocks, is_template=@is_template,
+    updated_at=datetime('now') WHERE id=@id
+  `).run({
+    id, name: data.name, team_age: data.team_age || '', focus: data.focus || '',
+    duration_mins: data.duration_mins || 60,
+    blocks: JSON.stringify(data.blocks || []),
+    is_template: data.is_template ? 1 : 0
+  });
+  return result.changes > 0 ? getSession(id) : null;
+}
+function deleteSession(id) {
+  return db.prepare('DELETE FROM practice_sessions WHERE id = ?').run(id).changes > 0;
+}
+
 // Schedule helpers
 function listSchedules() {
   return db.prepare('SELECT id, name, week_start, entries, created_at, updated_at FROM schedules ORDER BY week_start DESC, id DESC').all();
@@ -210,5 +258,6 @@ module.exports = {
   listDrills, getDrill, createDrill, updateDrill, deleteDrill, isDrillPreset,
   listSequences, getSequence, createSequence, updateSequence, deleteSequence,
   listSchedules, getSchedule, createSchedule, updateSchedule, deleteSchedule,
+  listSessions, getSession, createSession, updateSession, deleteSession,
   getSetting, setSetting
 };
