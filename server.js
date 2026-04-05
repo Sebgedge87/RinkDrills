@@ -368,6 +368,103 @@ app.delete('/api/sequences/:id', (req, res) => {
   }
 });
 
+// ── API: Schedules ────────────────────────────────────────────────────────────
+app.get('/api/schedules', (req, res) => {
+  try {
+    const rows = db.listSchedules().map(s => ({ ...s, entries: JSON.parse(s.entries || '[]') }));
+    res.json({ success: true, data: rows });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.get('/api/schedules/:id', (req, res) => {
+  try {
+    const s = db.getSchedule(Number(req.params.id));
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: { ...s, entries: JSON.parse(s.entries || '[]') } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/schedules', (req, res) => {
+  try {
+    const { name, week_start, entries } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    const s = db.createSchedule({ name: name.trim(), week_start, entries });
+    res.status(201).json({ success: true, data: { ...s, entries: JSON.parse(s.entries || '[]') } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.put('/api/schedules/:id', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { name, week_start, entries } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    const s = db.updateSchedule(id, { name: name.trim(), week_start, entries });
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: { ...s, entries: JSON.parse(s.entries || '[]') } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/schedules/:id', (req, res) => {
+  try {
+    const ok = db.deleteSchedule(Number(req.params.id));
+    if (!ok) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: { id: Number(req.params.id) } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── API: Bulk import ──────────────────────────────────────────────────────────
+// POST /api/import/drills  — body: [{name,category,description}, ...]
+app.post('/api/import/drills', (req, res) => {
+  try {
+    const rows = req.body;
+    if (!Array.isArray(rows) || rows.length === 0)
+      return res.status(400).json({ success: false, error: 'Expected array of drills' });
+    const created = [];
+    for (const row of rows) {
+      if (!row.name || !row.name.trim()) continue;
+      const drill = db.createDrill({
+        name: row.name.trim(),
+        description: row.description || '',
+        category: VALID_CATEGORIES.includes(row.category) ? row.category : 'custom',
+        player_positions: [],
+        arrows: [],
+        is_preset: false
+      });
+      drill.player_positions = JSON.parse(drill.player_positions || '[]');
+      drill.arrows = JSON.parse(drill.arrows || '[]');
+      created.push(drill);
+    }
+    res.status(201).json({ success: true, data: created });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// POST /api/import/sequences — body: [{name, description, steps:[{drill_name,duration_seconds,transition_note}]}]
+app.post('/api/import/sequences', (req, res) => {
+  try {
+    const rows = req.body;
+    if (!Array.isArray(rows) || rows.length === 0)
+      return res.status(400).json({ success: false, error: 'Expected array of sequences' });
+
+    // Build a name→id lookup for drills
+    const allDrills = db.listDrills();
+    const drillByName = {};
+    allDrills.forEach(d => { drillByName[d.name.toLowerCase()] = d.id; });
+
+    const created = [];
+    for (const row of rows) {
+      if (!row.name || !row.name.trim()) continue;
+      const steps = (row.steps || []).map(s => {
+        const did = drillByName[(s.drill_name || '').toLowerCase()];
+        return did ? { drill_id: did, duration_seconds: Number(s.duration_seconds) || 120, transition_note: s.transition_note || '' } : null;
+      }).filter(Boolean);
+      const seq = db.createSequence({ name: row.name.trim(), description: row.description || '', steps });
+      seq.steps = JSON.parse(seq.steps || '[]');
+      created.push(seq);
+    }
+    res.status(201).json({ success: true, data: created });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
 // ── SPA fallback ──────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

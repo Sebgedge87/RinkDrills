@@ -98,10 +98,11 @@ const DrillManager = (() => {
 
       const catColor = CAT_COLORS[d.category] || '#607d8b';
       el.innerHTML = `
-        <span class="drill-name" title="${esc(d.name)}">${esc(d.name)}</span>
+        <span class="drill-name" title="Click to load drill">${esc(d.name)}</span>
         <span class="cat-badge" style="border-color:${catColor};color:${catColor}">${esc(d.category)}</span>
         ${d.is_preset ? '<span class="preset-icon" title="Preset — cannot be edited">🔒</span>' : ''}
         <div class="item-actions">
+          <button class="icon-btn info-drill-btn" data-id="${d.id}" title="View drill details">ℹ️</button>
           <button class="icon-btn edit-drill-btn" data-id="${d.id}" ${d.is_preset ? 'disabled title="Cannot edit preset"' : ''}>✏️</button>
           <button class="icon-btn danger delete-drill-btn" data-id="${d.id}" ${d.is_preset ? 'disabled title="Cannot delete preset"' : ''}>🗑️</button>
         </div>
@@ -109,6 +110,7 @@ const DrillManager = (() => {
 
       el.querySelector('.drill-name').addEventListener('click', () => loadDrillOntoCanvas(d.id));
       el.querySelector('.cat-badge').addEventListener('click', () => loadDrillOntoCanvas(d.id));
+      el.querySelector('.info-drill-btn').addEventListener('click', (ev) => { ev.stopPropagation(); openDrillDetail(d); });
 
       const editBtn = el.querySelector('.edit-drill-btn');
       if (!d.is_preset) {
@@ -488,8 +490,29 @@ const DrillManager = (() => {
     });
   }
 
+  // ── Drill detail modal ─────────────────────────────────────────────────────
+  function openDrillDetail(drill) {
+    const modal = document.getElementById('drill-detail-modal');
+    const catColor = CAT_COLORS[drill.category] || '#607d8b';
+    document.getElementById('detail-name').textContent = drill.name;
+    document.getElementById('detail-category').innerHTML =
+      `<span class="cat-badge" style="border-color:${catColor};color:${catColor};font-size:0.85rem;padding:3px 8px">${esc(drill.category)}</span>` +
+      (drill.is_preset ? ' <span class="preset-icon">🔒 Preset</span>' : '');
+    const desc = drill.description && drill.description.trim()
+      ? drill.description
+      : 'No description provided for this drill.';
+    document.getElementById('detail-description').textContent = desc;
+    document.getElementById('detail-load-btn').onclick = () => {
+      modal.classList.remove('open');
+      loadDrillOntoCanvas(drill.id);
+    };
+    modal.classList.add('open');
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
   function getOpenSaveDrillModal() { openDrillModal(null); }
+  function getAllDrills()     { return allDrills; }
+  function getAllSequences()  { return allSequences; }
 
-  return { init, loadDrills, loadSequences, getOpenSaveDrillModal, openDrillModal };
+  return { init, loadDrills, loadSequences, getOpenSaveDrillModal, openDrillModal, getAllDrills, getAllSequences };
 })();

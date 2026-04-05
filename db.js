@@ -54,6 +54,15 @@ function init() {
       created_at  TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS schedules (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT NOT NULL,
+      week_start  TEXT NOT NULL DEFAULT '',
+      entries     TEXT NOT NULL DEFAULT '[]',
+      created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 }
 
@@ -173,9 +182,33 @@ function setSetting(key, value) {
   db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(key, String(value));
 }
 
+// Schedule helpers
+function listSchedules() {
+  return db.prepare('SELECT id, name, week_start, entries, created_at, updated_at FROM schedules ORDER BY week_start DESC, id DESC').all();
+}
+function getSchedule(id) {
+  return db.prepare('SELECT * FROM schedules WHERE id = ?').get(id);
+}
+function createSchedule(data) {
+  const result = db.prepare(`
+    INSERT INTO schedules (name, week_start, entries) VALUES (@name, @week_start, @entries)
+  `).run({ name: data.name, week_start: data.week_start || '', entries: JSON.stringify(data.entries || []) });
+  return getSchedule(result.lastInsertRowid);
+}
+function updateSchedule(id, data) {
+  const result = db.prepare(`
+    UPDATE schedules SET name=@name, week_start=@week_start, entries=@entries, updated_at=datetime('now') WHERE id=@id
+  `).run({ id, name: data.name, week_start: data.week_start || '', entries: JSON.stringify(data.entries || []) });
+  return result.changes > 0 ? getSchedule(id) : null;
+}
+function deleteSchedule(id) {
+  return db.prepare('DELETE FROM schedules WHERE id = ?').run(id).changes > 0;
+}
+
 module.exports = {
   init,
   listDrills, getDrill, createDrill, updateDrill, deleteDrill, isDrillPreset,
   listSequences, getSequence, createSequence, updateSequence, deleteSequence,
+  listSchedules, getSchedule, createSchedule, updateSchedule, deleteSchedule,
   getSetting, setSetting
 };

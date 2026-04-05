@@ -84,6 +84,8 @@ const App = (() => {
     bindExportImport();
     setMode('select');
     DrillManager.init();
+    ScheduleManager.init();
+    ImportManager.init();
   }
 
   // ── Coordinate helpers ─────────────────────────────────────────────────────

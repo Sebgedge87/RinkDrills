@@ -14,9 +14,10 @@
     <button id="hamburger-btn" aria-label="Toggle sidebar">☰</button>
     <h1>Ice<span>Board</span></h1>
     <div class="header-spacer"></div>
+    <button class="header-btn" id="open-import-btn" title="Import drills or sequences from CSV">⬆ Import</button>
     <button class="header-btn" id="export-png-btn" title="Export canvas as PNG">📷 PNG</button>
     <button class="header-btn" id="export-json-btn" title="Export drill as JSON">⬇ JSON</button>
-    <button class="header-btn" id="import-json-btn" title="Import drill from JSON">⬆ Import</button>
+    <button class="header-btn" id="import-json-btn" title="Import drill from JSON">⬆ Drill JSON</button>
     <input type="file" id="import-file-input" accept=".json" style="display:none">
   </header>
 
@@ -27,6 +28,7 @@
       <div class="sidebar-tabs">
         <button class="tab-btn active" data-tab="drills">Drills</button>
         <button class="tab-btn" data-tab="sequences">Sequences</button>
+        <button class="tab-btn" data-tab="schedule">Schedule</button>
       </div>
 
       <!-- Drills tab -->
@@ -60,6 +62,14 @@
           <div class="empty-state">No sequences yet</div>
         </div>
         <button class="sidebar-action-btn" id="new-seq-btn">＋ New Sequence</button>
+      </div>
+
+      <!-- Schedule tab -->
+      <div class="tab-panel" id="tab-schedule">
+        <div class="sidebar-list" id="schedule-list">
+          <div class="empty-state">No schedules yet</div>
+        </div>
+        <button class="sidebar-action-btn" id="new-schedule-btn">＋ New Weekly Schedule</button>
       </div>
     </aside>
 
@@ -145,7 +155,26 @@
 <!-- Toast container -->
 <div id="toast-container"></div>
 
-<!-- ── Drill Modal ──────────────────────────────────────────────────────────── -->
+<!-- ── Drill Detail Modal (read-only, for players) ─────────────────────────── -->
+<div class="modal-backdrop" id="drill-detail-modal">
+  <div class="modal modal-detail">
+    <button class="modal-close" onclick="document.getElementById('drill-detail-modal').classList.remove('open')">✕</button>
+    <div class="detail-header">
+      <h2 id="detail-name">Drill Name</h2>
+      <div id="detail-category"></div>
+    </div>
+    <div class="detail-body">
+      <h3 class="detail-section-label">About this drill</h3>
+      <p id="detail-description" class="detail-desc-text"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="document.getElementById('drill-detail-modal').classList.remove('open')">Close</button>
+      <button class="btn btn-primary" id="detail-load-btn">Load onto Board</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Drill Save/Edit Modal ───────────────────────────────────────────────── -->
 <div class="modal-backdrop" id="drill-modal">
   <div class="modal">
     <button class="modal-close" id="drill-modal-close">✕</button>
@@ -157,7 +186,7 @@
       </div>
       <div class="form-group">
         <label for="drill-desc">Description</label>
-        <textarea id="drill-desc" rows="3" placeholder="Optional coaching notes…"></textarea>
+        <textarea id="drill-desc" rows="3" placeholder="Describe what players do, coaching points, key skills…"></textarea>
       </div>
       <div class="form-group">
         <label for="drill-cat">Category</label>
@@ -185,7 +214,6 @@
   <div class="modal modal-lg">
     <button class="modal-close" id="seq-modal-close">✕</button>
     <h2>Sequence Editor</h2>
-
     <div class="form-group">
       <label for="seq-name">Sequence Name *</label>
       <input id="seq-name" type="text" placeholder="e.g. Tuesday Practice" maxlength="120">
@@ -194,18 +222,15 @@
       <label for="seq-desc">Description</label>
       <textarea id="seq-desc" rows="2" placeholder="Optional notes…"></textarea>
     </div>
-
     <div class="form-group">
       <label>Add Drills</label>
       <input id="seq-drill-search" type="text" placeholder="Search drills…">
       <div id="seq-available-drills"></div>
     </div>
-
     <div class="steps-label">Steps (drag to reorder)</div>
     <div id="seq-steps-list">
       <div class="empty-state">Add drills from the list above</div>
     </div>
-
     <div class="modal-footer">
       <button class="btn btn-secondary" id="seq-cancel-btn">Cancel</button>
       <button class="btn btn-primary" id="seq-save-btn">Save Sequence</button>
@@ -213,9 +238,96 @@
   </div>
 </div>
 
+<!-- ── Weekly Schedule Modal ───────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="schedule-modal">
+  <div class="modal modal-schedule">
+    <button class="modal-close" id="sch-modal-close">✕</button>
+    <h2>Weekly Schedule</h2>
+
+    <div class="sch-top-row">
+      <div class="form-group" style="flex:1;margin:0">
+        <label for="sch-name">Schedule Name *</label>
+        <input id="sch-name" type="text" placeholder="e.g. April Week 2 — Playoffs Prep" maxlength="120">
+      </div>
+      <div class="sch-week-nav">
+        <button class="seq-nav-btn" id="sch-prev-week">◀</button>
+        <span id="sch-week-label" class="sch-week-label">Week</span>
+        <button class="seq-nav-btn" id="sch-next-week">▶</button>
+      </div>
+    </div>
+
+    <div id="sch-week-grid" class="sch-week-grid"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="sch-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="sch-save-btn">Save Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Import Modal ────────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal modal-lg">
+    <button class="modal-close" id="import-modal-close">✕</button>
+    <h2>Import Drills &amp; Sequences</h2>
+    <p class="import-intro">Upload a CSV file to add drills or sequences in bulk. Download a template to get started — no coding needed.</p>
+
+    <div class="import-tabs">
+      <button class="import-tab-btn active" id="import-tab-drills">🏒 Drills</button>
+      <button class="import-tab-btn" id="import-tab-seqs">📋 Sequences</button>
+    </div>
+
+    <!-- Drill import pane -->
+    <div id="import-drill-pane">
+      <div class="import-instructions">
+        <strong>How it works:</strong>
+        <ol>
+          <li>Download the template and open it in Excel or Google Sheets</li>
+          <li>Add your drills — one per row (Name, Category, Description)</li>
+          <li>Save as CSV and upload below</li>
+          <li>Review the preview, then click Import</li>
+        </ol>
+        <button class="btn btn-secondary" id="dl-drill-template">⬇ Download Drill Template</button>
+      </div>
+      <div class="form-group" style="margin-top:14px">
+        <label>Upload your CSV file</label>
+        <input type="file" id="import-drill-file" accept=".csv,.txt" class="file-input">
+      </div>
+      <div id="import-drill-preview"></div>
+      <div class="modal-footer" style="border-top:none;padding-top:8px">
+        <button class="btn btn-primary" id="confirm-import-drills">Import Drills</button>
+      </div>
+    </div>
+
+    <!-- Sequence import pane -->
+    <div id="import-seq-pane" style="display:none">
+      <div class="import-instructions">
+        <strong>How it works:</strong>
+        <ol>
+          <li>Download the template and open it in Excel or Google Sheets</li>
+          <li>Each sequence starts with a <code>SEQUENCE</code> row, followed by <code>STEP</code> rows</li>
+          <li>Drill names must match drills already in IceBoard (imported or presets)</li>
+          <li>Duration is in <strong>minutes</strong></li>
+        </ol>
+        <button class="btn btn-secondary" id="dl-seq-template">⬇ Download Sequence Template</button>
+      </div>
+      <div class="form-group" style="margin-top:14px">
+        <label>Upload your CSV file</label>
+        <input type="file" id="import-seq-file" accept=".csv,.txt" class="file-input">
+      </div>
+      <div id="import-seq-preview"></div>
+      <div class="modal-footer" style="border-top:none;padding-top:8px">
+        <button class="btn btn-primary" id="confirm-import-seqs">Import Sequences</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="rink.js"></script>
 <script src="sequencePlayer.js"></script>
 <script src="drillManager.js"></script>
+<script src="scheduleManager.js"></script>
+<script src="importManager.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
