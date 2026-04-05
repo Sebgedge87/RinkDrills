@@ -120,8 +120,8 @@ const App = (() => {
   function drawPuck() {
     const pos = pxFromFrac(puck.bx, puck.by);
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const rx = Math.max(5, scale * 0.55);
-    const ry = Math.max(3, scale * 0.32);
+    const rx = Math.max(7, scale * 0.9);
+    const ry = Math.max(5, scale * 0.55);
 
     ctx.save();
     ctx.translate(pos.x, pos.y);
@@ -150,7 +150,7 @@ const App = (() => {
 
   function drawPlayers() {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const r = Math.max(9, scale * 1.1);
+    const r = Math.max(12, scale * 2.0); // ~3ft diameter on ice
 
     players.forEach(p => {
       let pos;
@@ -194,7 +194,7 @@ const App = (() => {
 
       // Label
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.max(8, r * 0.72)}px sans-serif`;
+      ctx.font = `bold ${Math.max(9, r * 0.68)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(p.id.toUpperCase(), pos.x, pos.y);
@@ -334,8 +334,8 @@ const App = (() => {
   // ── Hit testing ────────────────────────────────────────────────────────────
   function getPuckAt(x, y) {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const rx = Math.max(9, scale * 0.85);
-    const ry = Math.max(6, scale * 0.6);
+    const rx = Math.max(10, scale * 1.1);
+    const ry = Math.max(7, scale * 0.75);
     const pos = pxFromFrac(puck.bx, puck.by);
     const nx = (x - pos.x) / rx;
     const ny = (y - pos.y) / ry;
@@ -344,7 +344,7 @@ const App = (() => {
 
   function getPlayerAt(x, y) {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const r = Math.max(9, scale * 1.1) + 4; // slightly larger hit area
+    const r = Math.max(12, scale * 2.0) + 4; // slightly larger hit area
 
     for (let i = players.length - 1; i >= 0; i--) {
       const p   = players[i];
