@@ -173,6 +173,40 @@ const DrillManager = (() => {
     });
   }
 
+  // ── Active drill bar ───────────────────────────────────────────────────────
+  function setActiveDrillBar(drill) {
+    const bar = document.getElementById('active-drill-bar');
+    if (!drill) {
+      bar.style.display = 'none';
+      return;
+    }
+    bar.style.display = 'block';
+    document.getElementById('active-drill-name').textContent = drill.name;
+    document.getElementById('update-drill-btn').onclick = async () => {
+      if (drill.is_preset) { showToast('Cannot overwrite a preset drill', 'error'); return; }
+      const state = App.getState();
+      try {
+        const res = await fetch(`/api/drills/${drill.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: drill.name,
+            description: drill.description || '',
+            category: drill.category || 'custom',
+            player_positions: state.player_positions,
+            arrows: state.arrows
+          })
+        });
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error);
+        await loadDrills();
+        showToast(`"${drill.name}" updated with current layout!`, 'success');
+      } catch (e) {
+        showToast('Update failed: ' + e.message, 'error');
+      }
+    };
+  }
+
   // ── Load drill onto canvas ─────────────────────────────────────────────────
   async function loadDrillOntoCanvas(id) {
     try {
@@ -181,6 +215,7 @@ const DrillManager = (() => {
       if (!json.success) throw new Error(json.error);
       activeDrillId = id;
       renderDrillList();
+      setActiveDrillBar(json.data);
       App.loadDrill(json.data);
     } catch (e) {
       showToast('Failed to load drill: ' + e.message, 'error');
@@ -516,6 +551,7 @@ const DrillManager = (() => {
   function getOpenSaveDrillModal() { openDrillModal(null); }
   function getAllDrills()     { return allDrills; }
   function getAllSequences()  { return allSequences; }
+  function clearActiveDrill() { activeDrillId = null; setActiveDrillBar(null); renderDrillList(); }
 
-  return { init, loadDrills, loadSequences, getOpenSaveDrillModal, openDrillModal, getAllDrills, getAllSequences };
+  return { init, loadDrills, loadSequences, getOpenSaveDrillModal, openDrillModal, getAllDrills, getAllSequences, clearActiveDrill };
 })();

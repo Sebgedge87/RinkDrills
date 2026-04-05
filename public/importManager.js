@@ -1,17 +1,214 @@
 /**
  * importManager.js — CSV upload for drills and sequences
  *
- * Drill CSV format (coaches fill this in Excel/Google Sheets):
- *   Name,Category,Description
- *   Cone Weave,skating,Players weave through cones at full speed
+ * Drill CSV format:  Name, Category, Description
+ * Sequence CSV format: SEQUENCE/STEP blocks
  *
- * Sequence CSV format:
- *   SEQUENCE,My Sequence,Optional description
- *   STEP,Drill Name,3,Transition note
- *   STEP,Another Drill,2,
- *   SEQUENCE,Second Sequence,
- *   STEP,Horseshoe,4,Get water break
+ * Each imported drill gets a category-based default formation so it
+ * loads with players and arrows already in place.
  */
+
+// ── Category formations ───────────────────────────────────────────────────────
+// Each category gets a default player layout + arrows.
+// Coordinates are fractional (0–1). bx=left→right, by=top→bottom.
+
+const CATEGORY_FORMATIONS = {
+
+  warmup: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.12, by:0.15 },
+      { id:'r3', team:'red',  role:'player',  bx:0.12, by:0.85 },
+      { id:'r4', team:'red',  role:'player',  bx:0.30, by:0.15 },
+      { id:'r5', team:'red',  role:'player',  bx:0.30, by:0.85 },
+      { id:'r6', team:'red',  role:'player',  bx:0.50, by:0.50 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.88, by:0.15 },
+      { id:'b3', team:'blue', role:'player',  bx:0.88, by:0.85 },
+      { id:'b4', team:'blue', role:'player',  bx:0.70, by:0.15 },
+      { id:'b5', team:'blue', role:'player',  bx:0.70, by:0.85 },
+      { id:'b6', team:'blue', role:'player',  bx:0.50, by:0.30 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.04, tby:0.15 },
+      { pid:'r3', tbx:0.30, tby:0.85 },
+      { pid:'r4', tbx:0.50, tby:0.15 },
+      { pid:'b2', tbx:0.96, tby:0.15 },
+      { pid:'b3', tbx:0.70, tby:0.85 },
+      { pid:'b4', tbx:0.50, tby:0.15 },
+    ]
+  },
+
+  skating: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.20, by:0.20 },
+      { id:'r3', team:'red',  role:'player',  bx:0.20, by:0.80 },
+      { id:'r4', team:'red',  role:'player',  bx:0.35, by:0.50 },
+      { id:'r5', team:'red',  role:'player',  bx:0.50, by:0.20 },
+      { id:'r6', team:'red',  role:'player',  bx:0.50, by:0.80 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.80, by:0.20 },
+      { id:'b3', team:'blue', role:'player',  bx:0.80, by:0.80 },
+      { id:'b4', team:'blue', role:'player',  bx:0.65, by:0.50 },
+      { id:'b5', team:'blue', role:'player',  bx:0.50, by:0.35 },
+      { id:'b6', team:'blue', role:'player',  bx:0.50, by:0.65 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.35, tby:0.20 },
+      { pid:'r3', tbx:0.35, tby:0.80 },
+      { pid:'r4', tbx:0.50, tby:0.50 },
+      { pid:'b2', tbx:0.65, tby:0.20 },
+      { pid:'b3', tbx:0.65, tby:0.80 },
+      { pid:'b4', tbx:0.50, tby:0.50 },
+    ]
+  },
+
+  passing: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.35, by:0.20 },
+      { id:'r3', team:'red',  role:'player',  bx:0.35, by:0.40 },
+      { id:'r4', team:'red',  role:'player',  bx:0.35, by:0.60 },
+      { id:'r5', team:'red',  role:'player',  bx:0.35, by:0.80 },
+      { id:'r6', team:'red',  role:'player',  bx:0.20, by:0.50 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.65, by:0.20 },
+      { id:'b3', team:'blue', role:'player',  bx:0.65, by:0.40 },
+      { id:'b4', team:'blue', role:'player',  bx:0.65, by:0.60 },
+      { id:'b5', team:'blue', role:'player',  bx:0.65, by:0.80 },
+      { id:'b6', team:'blue', role:'player',  bx:0.80, by:0.50 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.65, tby:0.20 },
+      { pid:'r3', tbx:0.65, tby:0.40 },
+      { pid:'r4', tbx:0.65, tby:0.60 },
+      { pid:'r5', tbx:0.65, tby:0.80 },
+      { pid:'b2', tbx:0.35, tby:0.20 },
+      { pid:'b3', tbx:0.35, tby:0.40 },
+    ]
+  },
+
+  shooting: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.60, by:0.25 },
+      { id:'r3', team:'red',  role:'player',  bx:0.60, by:0.45 },
+      { id:'r4', team:'red',  role:'player',  bx:0.60, by:0.65 },
+      { id:'r5', team:'red',  role:'player',  bx:0.45, by:0.35 },
+      { id:'r6', team:'red',  role:'player',  bx:0.45, by:0.65 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.80, by:0.35 },
+      { id:'b3', team:'blue', role:'player',  bx:0.80, by:0.65 },
+      { id:'b4', team:'blue', role:'player',  bx:0.72, by:0.50 },
+      { id:'b5', team:'blue', role:'player',  bx:0.50, by:0.30 },
+      { id:'b6', team:'blue', role:'player',  bx:0.50, by:0.70 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.88, tby:0.30 },
+      { pid:'r3', tbx:0.90, tby:0.50 },
+      { pid:'r4', tbx:0.88, tby:0.70 },
+      { pid:'r5', tbx:0.70, tby:0.30 },
+      { pid:'r6', tbx:0.70, tby:0.70 },
+    ]
+  },
+
+  defensive: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.18, by:0.28 },
+      { id:'r3', team:'red',  role:'player',  bx:0.18, by:0.72 },
+      { id:'r4', team:'red',  role:'player',  bx:0.12, by:0.40 },
+      { id:'r5', team:'red',  role:'player',  bx:0.12, by:0.60 },
+      { id:'r6', team:'red',  role:'player',  bx:0.28, by:0.50 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.35, by:0.25 },
+      { id:'b3', team:'blue', role:'player',  bx:0.35, by:0.75 },
+      { id:'b4', team:'blue', role:'player',  bx:0.28, by:0.38 },
+      { id:'b5', team:'blue', role:'player',  bx:0.28, by:0.62 },
+      { id:'b6', team:'blue', role:'player',  bx:0.42, by:0.50 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.22, tby:0.28 },
+      { pid:'r3', tbx:0.22, tby:0.72 },
+      { pid:'r4', tbx:0.18, tby:0.38 },
+      { pid:'r5', tbx:0.18, tby:0.62 },
+      { pid:'b2', tbx:0.28, tby:0.25 },
+      { pid:'b3', tbx:0.28, tby:0.75 },
+    ]
+  },
+
+  offensive: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.65, by:0.18 },
+      { id:'r3', team:'red',  role:'player',  bx:0.65, by:0.82 },
+      { id:'r4', team:'red',  role:'player',  bx:0.58, by:0.38 },
+      { id:'r5', team:'red',  role:'player',  bx:0.58, by:0.62 },
+      { id:'r6', team:'red',  role:'player',  bx:0.55, by:0.50 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.78, by:0.35 },
+      { id:'b3', team:'blue', role:'player',  bx:0.78, by:0.65 },
+      { id:'b4', team:'blue', role:'player',  bx:0.70, by:0.50 },
+      { id:'b5', team:'blue', role:'player',  bx:0.85, by:0.40 },
+      { id:'b6', team:'blue', role:'player',  bx:0.85, by:0.60 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.85, tby:0.22 },
+      { pid:'r3', tbx:0.85, tby:0.78 },
+      { pid:'r4', tbx:0.75, tby:0.38 },
+      { pid:'r5', tbx:0.75, tby:0.62 },
+      { pid:'r6', tbx:0.70, tby:0.50 },
+    ]
+  },
+
+  conditioning: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.08, by:0.15 },
+      { id:'r3', team:'red',  role:'player',  bx:0.08, by:0.40 },
+      { id:'r4', team:'red',  role:'player',  bx:0.08, by:0.65 },
+      { id:'r5', team:'red',  role:'player',  bx:0.08, by:0.88 },
+      { id:'r6', team:'red',  role:'player',  bx:0.50, by:0.50 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.92, by:0.15 },
+      { id:'b3', team:'blue', role:'player',  bx:0.92, by:0.40 },
+      { id:'b4', team:'blue', role:'player',  bx:0.92, by:0.65 },
+      { id:'b5', team:'blue', role:'player',  bx:0.92, by:0.88 },
+      { id:'b6', team:'blue', role:'player',  bx:0.50, by:0.25 },
+    ],
+    arrows: [
+      { pid:'r2', tbx:0.04, tby:0.12 },
+      { pid:'r3', tbx:0.04, tby:0.88 },
+      { pid:'r4', tbx:0.50, tby:0.90 },
+      { pid:'r5', tbx:0.92, tby:0.88 },
+      { pid:'b2', tbx:0.96, tby:0.12 },
+      { pid:'b3', tbx:0.96, tby:0.88 },
+    ]
+  },
+
+  custom: {
+    player_positions: [
+      { id:'r1', team:'red',  role:'gk',     bx:0.04, by:0.50 },
+      { id:'r2', team:'red',  role:'player',  bx:0.15, by:0.25 },
+      { id:'r3', team:'red',  role:'player',  bx:0.15, by:0.75 },
+      { id:'r4', team:'red',  role:'player',  bx:0.25, by:0.35 },
+      { id:'r5', team:'red',  role:'player',  bx:0.25, by:0.65 },
+      { id:'r6', team:'red',  role:'player',  bx:0.20, by:0.50 },
+      { id:'b1', team:'blue', role:'gk',     bx:0.96, by:0.50 },
+      { id:'b2', team:'blue', role:'player',  bx:0.85, by:0.25 },
+      { id:'b3', team:'blue', role:'player',  bx:0.85, by:0.75 },
+      { id:'b4', team:'blue', role:'player',  bx:0.75, by:0.35 },
+      { id:'b5', team:'blue', role:'player',  bx:0.75, by:0.65 },
+      { id:'b6', team:'blue', role:'player',  bx:0.80, by:0.50 },
+    ],
+    arrows: []
+  }
+};
+
+function getFormation(category) {
+  return CATEGORY_FORMATIONS[category] || CATEGORY_FORMATIONS.custom;
+}
 
 const ImportManager = (() => {
   const modal      = document.getElementById('import-modal');
@@ -118,7 +315,15 @@ const ImportManager = (() => {
       if (!headerFound) continue; // skip until header
       const [name, category, description] = cols;
       if (!name) continue;
-      drills.push({ name, category: category || 'custom', description: description || '' });
+      const cat = (category || 'custom').toLowerCase().trim();
+      const formation = getFormation(cat);
+      drills.push({
+        name,
+        category: cat,
+        description: description || '',
+        player_positions: formation.player_positions,
+        arrows: formation.arrows
+      });
     }
     return drills;
   }
@@ -157,11 +362,12 @@ const ImportManager = (() => {
     drillPreview.innerHTML = `
       <p class="import-count">${drills.length} drill${drills.length !== 1 ? 's' : ''} ready to import</p>
       <table class="import-table">
-        <thead><tr><th>Name</th><th>Category</th><th>Description</th></tr></thead>
+        <thead><tr><th>Name</th><th>Category</th><th>Layout</th><th>Description</th></tr></thead>
         <tbody>${drills.map(d => `
           <tr>
             <td>${esc(d.name)}</td>
             <td><span class="cat-badge">${esc(d.category)}</span></td>
+            <td style="color:var(--green);font-size:0.75rem">✓ ${d.arrows.length} arrows</td>
             <td class="import-desc">${esc(d.description)}</td>
           </tr>`).join('')}
         </tbody>
