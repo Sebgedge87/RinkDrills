@@ -514,6 +514,7 @@ const App = (() => {
       puck    = { bx: 0.5, by: 0.5 };
       arrows  = [];
       undoStack = [];
+      DrillManager.clearActiveDrill();
       render();
     });
 

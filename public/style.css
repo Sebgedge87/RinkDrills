@@ -277,6 +277,43 @@ html, body {
 .icon-btn.danger:hover { color: var(--danger); background: rgba(231,76,60,0.1); }
 .icon-btn:disabled { opacity: 0.25; cursor: not-allowed; }
 
+/* Active drill bar — shown when a drill is loaded */
+#active-drill-bar {
+  margin: 4px 10px 0;
+  padding: 8px 10px;
+  background: rgba(79,110,247,0.1);
+  border: 1px solid rgba(79,110,247,0.3);
+  border-radius: 7px;
+}
+
+.active-drill-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.active-drill-icon { flex-shrink: 0; }
+
+#active-drill-name {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-action-update {
+  background: #2a6a3a !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.sidebar-action-update:hover { background: #348a4a !important; }
+
 .sidebar-action-btn {
   width: calc(100% - 20px);
   margin: 6px 10px;
