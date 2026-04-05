@@ -35,6 +35,7 @@ const App = (() => {
 
   // ── State ──────────────────────────────────────────────────────────────────
   let players = [];
+  let puck    = { bx: 0.5, by: 0.5 };  // single puck, fractional coords
   let arrows  = [];       // [{pid, tbx, tby}] — fractional destination
   let undoStack = [];     // max 20 arrow states
 
@@ -74,6 +75,7 @@ const App = (() => {
 
   function init() {
     players = defaultPlayers();
+    puck    = { bx: 0.5, by: 0.5 };
     arrows  = [];
     resizeCanvas();
     bindCanvasEvents();
@@ -106,10 +108,42 @@ const App = (() => {
   function render() {
     drawRink(ctx, canvas.width, canvas.height);
     drawArrows();
+    drawPuck();
     drawPlayers();
     if (mode === 'arrow' && arrowSrcPid && previewEnd) {
       drawPreviewArrow();
     }
+  }
+
+  function drawPuck() {
+    const pos = pxFromFrac(puck.bx, puck.by);
+    const scale = Math.min(canvas.width / 200, canvas.height / 85);
+    const rx = Math.max(5, scale * 0.55);
+    const ry = Math.max(3, scale * 0.32);
+
+    ctx.save();
+    ctx.translate(pos.x, pos.y);
+
+    // Shadow
+    ctx.beginPath();
+    ctx.ellipse(1.5, 2, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fill();
+
+    // Puck body
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#111';
+    ctx.fill();
+
+    // Edge highlight
+    ctx.beginPath();
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+
+    ctx.restore();
   }
 
   function drawPlayers() {
@@ -296,6 +330,16 @@ const App = (() => {
   }
 
   // ── Hit testing ────────────────────────────────────────────────────────────
+  function getPuckAt(x, y) {
+    const scale = Math.min(canvas.width / 200, canvas.height / 85);
+    const rx = Math.max(7, scale * 0.7);
+    const ry = Math.max(5, scale * 0.5);
+    const pos = pxFromFrac(puck.bx, puck.by);
+    const nx = (x - pos.x) / rx;
+    const ny = (y - pos.y) / ry;
+    return (nx * nx + ny * ny) <= 1;
+  }
+
   function getPlayerAt(x, y) {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
     const r = Math.max(8, scale * 0.85) + 4; // slightly larger hit area
@@ -352,6 +396,13 @@ const App = (() => {
     const { x, y } = getCanvasXY(ev);
 
     if (mode === 'select') {
+      // Check puck first (it's small, check before players)
+      if (getPuckAt(x, y)) {
+        const frac = fracFromPx(x, y);
+        dragging = { pid: '__puck__', offBx: puck.bx - frac.bx, offBy: puck.by - frac.by };
+        dragMoved = false;
+        return;
+      }
       const p = getPlayerAt(x, y);
       if (p) {
         const frac = fracFromPx(x, y);
@@ -393,12 +444,19 @@ const App = (() => {
 
     if (mode === 'select' && dragging) {
       const frac = fracFromPx(x, y);
-      const p = players.find(pl => pl.id === dragging.pid);
-      if (p) {
-        p.bx = Math.max(0, Math.min(1, frac.bx + dragging.offBx));
-        p.by = Math.max(0, Math.min(1, frac.by + dragging.offBy));
+      if (dragging.pid === '__puck__') {
+        puck.bx = Math.max(0, Math.min(1, frac.bx + dragging.offBx));
+        puck.by = Math.max(0, Math.min(1, frac.by + dragging.offBy));
         dragMoved = true;
         render();
+      } else {
+        const p = players.find(pl => pl.id === dragging.pid);
+        if (p) {
+          p.bx = Math.max(0, Math.min(1, frac.bx + dragging.offBx));
+          p.by = Math.max(0, Math.min(1, frac.by + dragging.offBy));
+          dragMoved = true;
+          render();
+        }
       }
     } else if (mode === 'arrow' && arrowSrcPid) {
       previewEnd = { x, y };
@@ -451,6 +509,7 @@ const App = (() => {
     document.getElementById('reset-btn').addEventListener('click', () => {
       stopAnimation();
       players = defaultPlayers();
+      puck    = { bx: 0.5, by: 0.5 };
       arrows  = [];
       undoStack = [];
       render();
@@ -560,6 +619,7 @@ const App = (() => {
     } else {
       players = defaultPlayers();
     }
+    puck = drill.puck ? { ...drill.puck } : { bx: 0.5, by: 0.5 };
     arrows = (drill.arrows || []).map(a => ({ ...a }));
     undoStack = [];
     arrowSrcPid = null;
@@ -571,6 +631,7 @@ const App = (() => {
     return {
       player_positions: players.map(p => ({ ...p })),
       players: players.map(p => ({ ...p })), // compat alias
+      puck: { ...puck },
       arrows: arrows.map(a => ({ ...a }))
     };
   }

@@ -377,6 +377,17 @@ kbd {
   text-align: right;
 }
 
+.loop-badge {
+  font-size: 0.72rem;
+  color: var(--accent);
+  background: rgba(79,110,247,0.15);
+  border: 1px solid rgba(79,110,247,0.3);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 /* Canvas wrapper */
 #canvas-wrapper {
   flex: 1;

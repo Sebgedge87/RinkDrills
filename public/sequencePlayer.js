@@ -115,13 +115,13 @@ const SequencePlayer = (() => {
 
     // Update UI
     const name = step.drill ? step.drill.name : `Step ${index + 1}`;
-    seqLabel.textContent = `Drill ${index + 1} of ${sequence.steps.length} — ${name}`;
+    seqLabel.innerHTML = `Drill ${index + 1} of ${sequence.steps.length} — ${name} <span class="loop-badge">↻ loop</span>`;
     totalSeconds = step.duration_seconds || 120;
     elapsed = 0;
     updateTimerUI();
 
     prevBtn.disabled = index === 0;
-    nextBtn.disabled = index === sequence.steps.length - 1;
+    nextBtn.disabled = false; // always enabled — sequence loops
 
     // Start countdown
     timerHandle = setInterval(() => {
@@ -138,9 +138,8 @@ const SequencePlayer = (() => {
   function advanceStep() {
     const next = currentStep + 1;
     if (next >= sequence.steps.length) {
-      // Sequence complete
-      showToast('Sequence complete!', 'success');
-      stop();
+      // Loop back to start
+      gotoStep(0, true);
       return;
     }
     gotoStep(next, true);
