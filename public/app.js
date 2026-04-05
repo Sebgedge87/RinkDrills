@@ -150,7 +150,7 @@ const App = (() => {
 
   function drawPlayers() {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const r = Math.max(6, scale * 0.85);
+    const r = Math.max(9, scale * 1.1);
 
     players.forEach(p => {
       let pos;
@@ -194,7 +194,7 @@ const App = (() => {
 
       // Label
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${Math.max(7, r * 0.75)}px sans-serif`;
+      ctx.font = `bold ${Math.max(8, r * 0.72)}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(p.id.toUpperCase(), pos.x, pos.y);
@@ -334,8 +334,8 @@ const App = (() => {
   // ── Hit testing ────────────────────────────────────────────────────────────
   function getPuckAt(x, y) {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const rx = Math.max(7, scale * 0.7);
-    const ry = Math.max(5, scale * 0.5);
+    const rx = Math.max(9, scale * 0.85);
+    const ry = Math.max(6, scale * 0.6);
     const pos = pxFromFrac(puck.bx, puck.by);
     const nx = (x - pos.x) / rx;
     const ny = (y - pos.y) / ry;
@@ -344,7 +344,7 @@ const App = (() => {
 
   function getPlayerAt(x, y) {
     const scale = Math.min(canvas.width / 200, canvas.height / 85);
-    const r = Math.max(8, scale * 0.85) + 4; // slightly larger hit area
+    const r = Math.max(9, scale * 1.1) + 4; // slightly larger hit area
 
     for (let i = players.length - 1; i >= 0; i--) {
       const p   = players[i];

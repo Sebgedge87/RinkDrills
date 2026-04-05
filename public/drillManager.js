@@ -98,18 +98,21 @@ const DrillManager = (() => {
 
       const catColor = CAT_COLORS[d.category] || '#607d8b';
       el.innerHTML = `
-        <span class="drill-name" title="Click to load drill">${esc(d.name)}</span>
-        <span class="cat-badge" style="border-color:${catColor};color:${catColor}">${esc(d.category)}</span>
-        ${d.is_preset ? '<span class="preset-icon" title="Preset — cannot be edited">🔒</span>' : ''}
+        <div class="drill-item-body">
+          <span class="drill-name">${esc(d.name)}</span>
+          <div class="drill-meta">
+            <span class="cat-badge" style="border-color:${catColor};color:${catColor}">${esc(d.category)}</span>
+            ${d.is_preset ? '<span class="preset-icon" title="Preset drill">🔒</span>' : ''}
+          </div>
+        </div>
         <div class="item-actions">
-          <button class="icon-btn info-drill-btn" data-id="${d.id}" title="View drill details">ℹ️</button>
-          <button class="icon-btn edit-drill-btn" data-id="${d.id}" ${d.is_preset ? 'disabled title="Cannot edit preset"' : ''}>✏️</button>
-          <button class="icon-btn danger delete-drill-btn" data-id="${d.id}" ${d.is_preset ? 'disabled title="Cannot delete preset"' : ''}>🗑️</button>
+          <button class="icon-btn info-drill-btn" data-id="${d.id}" title="View drill details">ℹ</button>
+          <button class="icon-btn edit-drill-btn" data-id="${d.id}" ${d.is_preset ? 'disabled title="Cannot edit preset"' : 'title="Edit drill"'}>✏</button>
+          <button class="icon-btn danger delete-drill-btn" data-id="${d.id}" ${d.is_preset ? 'disabled title="Cannot delete preset"' : 'title="Delete drill"'}>✕</button>
         </div>
       `;
 
-      el.querySelector('.drill-name').addEventListener('click', () => loadDrillOntoCanvas(d.id));
-      el.querySelector('.cat-badge').addEventListener('click', () => loadDrillOntoCanvas(d.id));
+      el.querySelector('.drill-item-body').addEventListener('click', () => loadDrillOntoCanvas(d.id));
       el.querySelector('.info-drill-btn').addEventListener('click', (ev) => { ev.stopPropagation(); openDrillDetail(d); });
 
       const editBtn = el.querySelector('.edit-drill-btn');
