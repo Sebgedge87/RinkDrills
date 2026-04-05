@@ -52,7 +52,7 @@ const App = (() => {
   let animating     = false;
   let animFrame     = null;
   let animProgress  = {};    // {pid: 0-1}
-  const ANIM_SPEED  = 0.003; // fraction per ms
+  let ANIM_SPEED  = 0.0008; // fraction per ms (default ~slow)
 
   // ── Default player layout ──────────────────────────────────────────────────
   function defaultPlayers() {
@@ -439,6 +439,13 @@ const App = (() => {
 
     document.getElementById('animate-btn').addEventListener('click', () => {
       if (animating) stopAnimation(); else startAnimation();
+    });
+
+    const speedSlider = document.getElementById('speed-slider');
+    const speedLabel  = document.getElementById('speed-label');
+    speedSlider.addEventListener('input', () => {
+      ANIM_SPEED = parseFloat(speedSlider.value);
+      speedLabel.textContent = Math.round(parseFloat(speedSlider.value) / 0.0008 * 100) + '%';
     });
 
     document.getElementById('reset-btn').addEventListener('click', () => {
