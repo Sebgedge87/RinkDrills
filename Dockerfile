@@ -2,8 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install --production
+# Build deps needed for better-sqlite3 native addon
+RUN apk add --no-cache python3 make g++
+
+COPY package.json package-lock.json ./
+RUN npm ci --production
 
 COPY . .
 
