@@ -1,0 +1,12 @@
+[build]
+  builder = "DOCKERFILE"
+
+[deploy]
+  startCommand = "node server.js"
+  healthcheckPath = "/api/drills"
+  healthcheckTimeout = 10
+  restartPolicyType = "ON_FAILURE"
+  restartPolicyMaxRetries = 3
+
+[[volumes]]
+  mount = "/data"

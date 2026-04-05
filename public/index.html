@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IceBoard — Hockey Drill Designer</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header id="header">
+    <button id="hamburger-btn" aria-label="Toggle sidebar">☰</button>
+    <h1>Ice<span>Board</span></h1>
+    <div class="header-spacer"></div>
+    <button class="header-btn" id="export-png-btn" title="Export canvas as PNG">📷 PNG</button>
+    <button class="header-btn" id="export-json-btn" title="Export drill as JSON">⬇ JSON</button>
+    <button class="header-btn" id="import-json-btn" title="Import drill from JSON">⬆ Import</button>
+    <input type="file" id="import-file-input" accept=".json" style="display:none">
+  </header>
+
+  <div id="main">
+
+    <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
+    <aside id="sidebar">
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="drills">Drills</button>
+        <button class="tab-btn" data-tab="sequences">Sequences</button>
+      </div>
+
+      <!-- Drills tab -->
+      <div class="tab-panel active" id="tab-drills">
+        <div class="sidebar-section">
+          <input class="sidebar-search" id="drill-search" type="text" placeholder="Search drills…">
+          <select class="category-filter" id="drill-cat-filter">
+            <option value="">All categories</option>
+            <option value="warmup">Warmup</option>
+            <option value="skating">Skating</option>
+            <option value="passing">Passing</option>
+            <option value="shooting">Shooting</option>
+            <option value="defensive">Defensive</option>
+            <option value="offensive">Offensive</option>
+            <option value="conditioning">Conditioning</option>
+            <option value="custom">Custom</option>
+          </select>
+        </div>
+        <div class="sidebar-list" id="drill-list">
+          <div class="empty-state">Loading drills…</div>
+        </div>
+        <button class="sidebar-action-btn" id="save-drill-btn">＋ Save Current Board</button>
+      </div>
+
+      <!-- Sequences tab -->
+      <div class="tab-panel" id="tab-sequences">
+        <div class="sidebar-section">
+          <input class="sidebar-search" id="seq-search" type="text" placeholder="Search sequences…">
+        </div>
+        <div class="sidebar-list" id="seq-list">
+          <div class="empty-state">No sequences yet</div>
+        </div>
+        <button class="sidebar-action-btn" id="new-seq-btn">＋ New Sequence</button>
+      </div>
+    </aside>
+
+    <!-- Sidebar collapse toggle -->
+    <button id="sidebar-toggle" title="Toggle sidebar">‹</button>
+
+    <!-- ── Canvas area ──────────────────────────────────────────────────────── -->
+    <div id="canvas-area">
+
+      <!-- Toolbar -->
+      <div id="toolbar">
+        <div class="tool-group">
+          <button class="tool-btn active" id="mode-select" title="Select &amp; drag players">
+            ↖ Select <kbd>S</kbd>
+          </button>
+          <button class="tool-btn" id="mode-arrow" title="Click player then destination to draw arrow">
+            → Arrow <kbd>A</kbd>
+          </button>
+          <button class="tool-btn" id="mode-erase" title="Click an arrow to erase it">
+            ✕ Erase <kbd>E</kbd>
+          </button>
+        </div>
+
+        <div class="tool-sep"></div>
+
+        <div class="tool-group">
+          <button class="tool-btn" id="animate-btn" title="Animate all arrows (Space)">
+            ▶ Animate <kbd>Space</kbd>
+          </button>
+        </div>
+
+        <div class="tool-sep"></div>
+
+        <div class="tool-group">
+          <button class="tool-btn" id="clear-arrows-btn" title="Remove all arrows">
+            ✕ Clear Arrows
+          </button>
+          <button class="tool-btn danger" id="reset-btn" title="Reset to default player positions">
+            ↺ Reset Board
+          </button>
+        </div>
+      </div>
+
+      <!-- Rink canvas -->
+      <div id="canvas-wrapper">
+        <canvas id="rink-canvas"></canvas>
+      </div>
+
+      <!-- Transition overlay (shown between sequence steps) -->
+      <div id="transition-overlay">
+        <div id="transition-title">Next Drill</div>
+        <div id="transition-note"></div>
+        <div id="transition-count">3</div>
+      </div>
+
+      <!-- Sequence player bar -->
+      <div id="sequence-bar">
+        <div id="seq-progress-row">
+          <span id="seq-label">Drill 1 of 1</span>
+          <span id="seq-timer">02:00</span>
+        </div>
+        <div id="seq-progress-track">
+          <div id="seq-progress-fill"></div>
+        </div>
+        <div id="seq-controls">
+          <button class="seq-nav-btn" id="seq-prev-btn" disabled>◀ Prev</button>
+          <button class="seq-nav-btn" id="seq-pause-btn">⏸ Pause</button>
+          <button class="seq-nav-btn" id="seq-next-btn">Next ▶</button>
+          <button id="seq-close-btn">✕ End Sequence</button>
+        </div>
+      </div>
+
+    </div><!-- /canvas-area -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- ── Drill Modal ──────────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="drill-modal">
+  <div class="modal">
+    <button class="modal-close" id="drill-modal-close">✕</button>
+    <h2 id="drill-modal-title">Save Drill</h2>
+    <form id="drill-form" onsubmit="return false">
+      <div class="form-group">
+        <label for="drill-name">Name *</label>
+        <input id="drill-name" type="text" placeholder="e.g. Breakout Drill" maxlength="120" required>
+      </div>
+      <div class="form-group">
+        <label for="drill-desc">Description</label>
+        <textarea id="drill-desc" rows="3" placeholder="Optional coaching notes…"></textarea>
+      </div>
+      <div class="form-group">
+        <label for="drill-cat">Category</label>
+        <select id="drill-cat">
+          <option value="warmup">Warmup</option>
+          <option value="skating">Skating</option>
+          <option value="passing">Passing</option>
+          <option value="shooting">Shooting</option>
+          <option value="defensive">Defensive</option>
+          <option value="offensive">Offensive</option>
+          <option value="conditioning">Conditioning</option>
+          <option value="custom" selected>Custom</option>
+        </select>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="drill-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="drill-save-btn">Save Drill</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sequence Modal ──────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="seq-modal">
+  <div class="modal modal-lg">
+    <button class="modal-close" id="seq-modal-close">✕</button>
+    <h2>Sequence Editor</h2>
+
+    <div class="form-group">
+      <label for="seq-name">Sequence Name *</label>
+      <input id="seq-name" type="text" placeholder="e.g. Tuesday Practice" maxlength="120">
+    </div>
+    <div class="form-group">
+      <label for="seq-desc">Description</label>
+      <textarea id="seq-desc" rows="2" placeholder="Optional notes…"></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Add Drills</label>
+      <input id="seq-drill-search" type="text" placeholder="Search drills…">
+      <div id="seq-available-drills"></div>
+    </div>
+
+    <div class="steps-label">Steps (drag to reorder)</div>
+    <div id="seq-steps-list">
+      <div class="empty-state">Add drills from the list above</div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="seq-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="seq-save-btn">Save Sequence</button>
+    </div>
+  </div>
+</div>
+
+<script src="rink.js"></script>
+<script src="sequencePlayer.js"></script>
+<script src="drillManager.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
