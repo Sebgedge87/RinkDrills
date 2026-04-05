@@ -426,8 +426,8 @@ app.post('/api/import/drills', (req, res) => {
         name: row.name.trim(),
         description: row.description || '',
         category: VALID_CATEGORIES.includes(row.category) ? row.category : 'custom',
-        player_positions: [],
-        arrows: [],
+        player_positions: row.player_positions || [],
+        arrows: row.arrows || [],
         is_preset: false
       });
       drill.player_positions = JSON.parse(drill.player_positions || '[]');

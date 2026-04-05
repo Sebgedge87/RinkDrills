@@ -50,7 +50,15 @@
         <div class="sidebar-list" id="drill-list">
           <div class="empty-state">Loading drills…</div>
         </div>
-        <button class="sidebar-action-btn" id="save-drill-btn">＋ Save Current Board</button>
+        <!-- Shown when a drill is loaded — lets coach save layout back to it -->
+        <div id="active-drill-bar" style="display:none">
+          <div class="active-drill-label">
+            <span class="active-drill-icon">🏒</span>
+            <span id="active-drill-name">Drill name</span>
+          </div>
+          <button class="sidebar-action-btn sidebar-action-update" id="update-drill-btn">💾 Save Layout to This Drill</button>
+        </div>
+        <button class="sidebar-action-btn" id="save-drill-btn">＋ Save as New Drill</button>
       </div>
 
       <!-- Sequences tab -->
