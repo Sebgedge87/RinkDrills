@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 const db = require('./db');
 
 const app = express();
@@ -7,6 +8,43 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function generateToken() {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+function buildICS(s) {
+  const uid = `session-${s.id}@iceboard`;
+  const now = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z';
+  let dtstart = now;
+  if (s.date) {
+    const d = s.date.replace(/-/g, '');
+    const t = (s.start_time || '09:00').replace(':', '') + '00';
+    dtstart = `${d}T${t}`;
+  }
+  const dur = `PT${s.duration_mins || 60}M`;
+  const desc = [s.focus, s.team_age].filter(Boolean).join(' — ').replace(/[\\;,]/g, '\\$&');
+  const loc = (s.location || '').replace(/[\\;,]/g, '\\$&');
+  const name = (s.name || '').replace(/[\\;,]/g, '\\$&');
+
+  return [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//IceBoard//Hockey Practice//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${dtstart}`,
+    `DURATION:${dur}`,
+    `SUMMARY:${name}`,
+    loc ? `LOCATION:${loc}` : '',
+    desc ? `DESCRIPTION:${desc}` : '',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].filter(Boolean).join('\r\n');
+}
 
 // ── DB init ──────────────────────────────────────────────────────────────────
 db.init();
@@ -369,6 +407,11 @@ app.delete('/api/sequences/:id', (req, res) => {
 });
 
 // ── API: Practice Sessions ────────────────────────────────────────────────────
+function parseSession(s) {
+  s.blocks = JSON.parse(s.blocks || '[]');
+  return s;
+}
+
 app.get('/api/sessions', (req, res) => {
   try {
     res.json({ success: true, data: db.listSessions() });
@@ -379,35 +422,164 @@ app.get('/api/sessions/:id', (req, res) => {
   try {
     const s = db.getSession(Number(req.params.id));
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
-    s.blocks = JSON.parse(s.blocks || '[]');
-    res.json({ success: true, data: s });
+    res.json({ success: true, data: parseSession(s) });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.post('/api/sessions', (req, res) => {
   try {
-    const { name, team_age, focus, duration_mins, blocks, is_template } = req.body;
+    const { name, team_age, focus, duration_mins, blocks, is_template, date, start_time, location, status } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
-    const s = db.createSession({ name: name.trim(), team_age, focus, duration_mins, blocks, is_template });
-    s.blocks = JSON.parse(s.blocks || '[]');
-    res.status(201).json({ success: true, data: s });
+    const s = db.createSession({ name: name.trim(), team_age, focus, duration_mins, blocks, is_template, date, start_time, location, status });
+    res.status(201).json({ success: true, data: parseSession(s) });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.put('/api/sessions/:id', (req, res) => {
   try {
-    const { name, team_age, focus, duration_mins, blocks, is_template } = req.body;
+    const { name, team_age, focus, duration_mins, blocks, is_template, date, start_time, location, status } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
-    const s = db.updateSession(Number(req.params.id), { name: name.trim(), team_age, focus, duration_mins, blocks, is_template });
+    const s = db.updateSession(Number(req.params.id), { name: name.trim(), team_age, focus, duration_mins, blocks, is_template, date, start_time, location, status });
     if (!s) return res.status(404).json({ success: false, error: 'Not found' });
-    s.blocks = JSON.parse(s.blocks || '[]');
-    res.json({ success: true, data: s });
+    res.json({ success: true, data: parseSession(s) });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.delete('/api/sessions/:id', (req, res) => {
   try {
     const ok = db.deleteSession(Number(req.params.id));
+    if (!ok) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: { id: Number(req.params.id) } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Publish a session — generates share token
+app.post('/api/sessions/:id/publish', (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const s = db.getSession(id);
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    const token = s.share_token || generateToken();
+    const updated = db.publishSession(id, token);
+    res.json({ success: true, data: parseSession(updated) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Public share endpoint — no auth needed
+app.get('/api/share/:token', (req, res) => {
+  try {
+    const s = db.getSessionByToken(req.params.token);
+    if (!s) return res.status(404).json({ success: false, error: 'Session not found or not published' });
+    parseSession(s);
+    // Resolve drill details for each block so the player view can render them
+    s.blocks = s.blocks.map(b => {
+      if (b.type === 'drill') {
+        const drill = db.getDrill(b.ref_id);
+        if (drill) {
+          b.drill = {
+            name: drill.name,
+            description: drill.description,
+            category: drill.category,
+            player_positions: JSON.parse(drill.player_positions || '[]'),
+            arrows: JSON.parse(drill.arrows || '[]')
+          };
+        }
+      }
+      return b;
+    });
+    res.json({ success: true, data: s });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// .ics calendar export
+app.get('/api/sessions/:id/ics', (req, res) => {
+  try {
+    const s = db.getSession(Number(req.params.id));
+    if (!s) return res.status(404).json({ success: false, error: 'Not found' });
+    const ics = buildICS(s);
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="session-${s.id}.ics"`);
+    res.send(ics);
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// Session roster
+app.get('/api/sessions/:id/roster', (req, res) => {
+  try {
+    res.json({ success: true, data: db.getSessionRoster(Number(req.params.id)) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.put('/api/sessions/:id/roster', (req, res) => {
+  try {
+    const playerIds = req.body.player_ids || [];
+    db.setSessionRoster(Number(req.params.id), playerIds);
+    res.json({ success: true, data: db.getSessionRoster(Number(req.params.id)) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── API: Teams ────────────────────────────────────────────────────────────────
+app.get('/api/teams', (req, res) => {
+  try { res.json({ success: true, data: db.listTeams() }); }
+  catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/teams', (req, res) => {
+  try {
+    const { name, age_group, season } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    res.status(201).json({ success: true, data: db.createTeam({ name: name.trim(), age_group, season }) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.put('/api/teams/:id', (req, res) => {
+  try {
+    const { name, age_group, season } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    const t = db.updateTeam(Number(req.params.id), { name: name.trim(), age_group, season });
+    if (!t) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: t });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/teams/:id', (req, res) => {
+  try {
+    const ok = db.deleteTeam(Number(req.params.id));
+    if (!ok) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: { id: Number(req.params.id) } });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── API: Players ──────────────────────────────────────────────────────────────
+app.get('/api/players', (req, res) => {
+  try {
+    const teamId = req.query.team_id ? Number(req.query.team_id) : null;
+    res.json({ success: true, data: db.listPlayers(teamId) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/api/players', (req, res) => {
+  try {
+    const { team_id, name, number, position } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    if (!team_id) return res.status(400).json({ success: false, error: 'team_id is required' });
+    res.status(201).json({ success: true, data: db.createPlayer({ team_id: Number(team_id), name: name.trim(), number, position }) });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.put('/api/players/:id', (req, res) => {
+  try {
+    const { name, number, position } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ success: false, error: 'name is required' });
+    const p = db.updatePlayer(Number(req.params.id), { name: name.trim(), number, position });
+    if (!p) return res.status(404).json({ success: false, error: 'Not found' });
+    res.json({ success: true, data: p });
+  } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.delete('/api/players/:id', (req, res) => {
+  try {
+    const ok = db.deletePlayer(Number(req.params.id));
     if (!ok) return res.status(404).json({ success: false, error: 'Not found' });
     res.json({ success: true, data: { id: Number(req.params.id) } });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
@@ -508,6 +680,11 @@ app.post('/api/import/sequences', (req, res) => {
     }
     res.status(201).json({ success: true, data: created });
   } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+});
+
+// ── Player experience view ────────────────────────────────────────────────────
+app.get('/session/:token', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'view.html'));
 });
 
 // ── SPA fallback ──────────────────────────────────────────────────────────────
