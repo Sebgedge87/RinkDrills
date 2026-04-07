@@ -36,14 +36,15 @@ const App = (() => {
   // ── State ──────────────────────────────────────────────────────────────────
   let players = [];
   let puck    = { bx: 0.5, by: 0.5 };  // single puck, fractional coords
-  let arrows  = [];       // [{pid, tbx, tby}] — fractional destination
+  let arrows  = [];       // [{pid, points:[{bx,by},...]}] — multi-segment path
   let undoStack = [];     // max 20 arrow states
 
   let mode = 'select';    // 'select' | 'arrow' | 'erase'
 
   // Arrow placement state
-  let arrowSrcPid   = null;
-  let previewEnd    = null;  // {x, y} canvas coords
+  let arrowSrcPid    = null;
+  let arrowWaypoints = [];   // [{bx,by}] accumulated waypoints while building
+  let previewEnd     = null;  // {x, y} canvas coords
 
   // Drag state
   let dragging      = null;  // {pid, offBx, offBy}
@@ -87,6 +88,7 @@ const App = (() => {
     ScheduleManager.init();
     ImportManager.init();
     SessionBuilder.init();
+    RosterManager.init();
   }
 
   // ── Coordinate helpers ─────────────────────────────────────────────────────
@@ -158,13 +160,7 @@ const App = (() => {
       if (animating && animProgress[p.id] !== undefined) {
         const arr = arrows.find(a => a.pid === p.id);
         if (arr) {
-          const t = animProgress[p.id];
-          const start = pxFromFrac(p.bx, p.by);
-          const end   = pxFromFrac(arr.tbx, arr.tby);
-          pos = {
-            x: start.x + (end.x - start.x) * t,
-            y: start.y + (end.y - start.y) * t
-          };
+          pos = getPlayerAnimPos(p, arr, animProgress[p.id]);
         } else {
           pos = pxFromFrac(p.bx, p.by);
         }
@@ -211,24 +207,93 @@ const App = (() => {
     });
   }
 
+  // Convert legacy {pid,tbx,tby} to new {pid,points:[{bx,by}]}
+  function normaliseArrow(arr) {
+    if (arr.points) return arr;
+    return { pid: arr.pid, points: [{ bx: arr.tbx, by: arr.tby }] };
+  }
+
+  function getPathPx(player, arr) {
+    const a = normaliseArrow(arr);
+    return [
+      pxFromFrac(player.bx, player.by),
+      ...a.points.map(pt => pxFromFrac(pt.bx, pt.by))
+    ];
+  }
+
+  // Animate position along multi-segment path (t = 0-1)
+  function getPlayerAnimPos(player, arr, t) {
+    const pts = getPathPx(player, arr);
+    const lengths = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const dx = pts[i+1].x - pts[i].x;
+      const dy = pts[i+1].y - pts[i].y;
+      const l = Math.sqrt(dx*dx + dy*dy);
+      lengths.push(l);
+      total += l;
+    }
+    if (total === 0) return pts[0];
+    let dist = t * total;
+    for (let i = 0; i < lengths.length; i++) {
+      if (dist <= lengths[i] || i === lengths.length - 1) {
+        const segT = lengths[i] > 0 ? Math.min(1, dist / lengths[i]) : 1;
+        return {
+          x: pts[i].x + (pts[i+1].x - pts[i].x) * segT,
+          y: pts[i].y + (pts[i+1].y - pts[i].y) * segT
+        };
+      }
+      dist -= lengths[i];
+    }
+    return pts[pts.length - 1];
+  }
+
   function drawArrows() {
-    arrows.forEach(arr => {
+    arrows.forEach(rawArr => {
+      const arr    = normaliseArrow(rawArr);
       const player = players.find(p => p.id === arr.pid);
       if (!player) return;
-      const start = pxFromFrac(player.bx, player.by);
-      const end   = pxFromFrac(arr.tbx, arr.tby);
-      drawArrowLine(ctx, start.x, start.y, end.x, end.y, '#f4a261', false);
+      const pts = getPathPx(player, arr);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const isLast = i === pts.length - 2;
+        drawArrowLine(ctx, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y, '#f4a261', false, isLast);
+      }
+      // Waypoint dots at intermediate points
+      for (let i = 1; i < pts.length - 1; i++) {
+        ctx.beginPath();
+        ctx.arc(pts[i].x, pts[i].y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#f4a261';
+        ctx.fill();
+      }
     });
   }
 
   function drawPreviewArrow() {
     const player = players.find(p => p.id === arrowSrcPid);
     if (!player) return;
-    const start = pxFromFrac(player.bx, player.by);
-    drawArrowLine(ctx, start.x, start.y, previewEnd.x, previewEnd.y, 'rgba(244,162,97,0.55)', true);
+    // Build preview path: player → waypoints so far
+    const pts = [
+      pxFromFrac(player.bx, player.by),
+      ...arrowWaypoints.map(pt => pxFromFrac(pt.bx, pt.by))
+    ];
+    // Draw committed waypoint segments
+    for (let i = 0; i < pts.length - 1; i++) {
+      drawArrowLine(ctx, pts[i].x, pts[i].y, pts[i+1].x, pts[i+1].y, 'rgba(244,162,97,0.8)', false, false);
+    }
+    // Waypoint dots
+    for (let i = 1; i < pts.length; i++) {
+      ctx.beginPath();
+      ctx.arc(pts[i].x, pts[i].y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(244,162,97,0.8)';
+      ctx.fill();
+    }
+    // Preview line from last point to mouse
+    const last = pts[pts.length - 1];
+    drawArrowLine(ctx, last.x, last.y, previewEnd.x, previewEnd.y, 'rgba(244,162,97,0.4)', true, true);
   }
 
-  function drawArrowLine(ctx, x1, y1, x2, y2, color, dashed) {
+  // drawArrowLine: dashed=true for preview, withHead controls arrowhead
+  function drawArrowLine(ctx, x1, y1, x2, y2, color, dashed, withHead = true) {
     const dx = x2 - x1;
     const dy = y2 - y1;
     const len = Math.sqrt(dx * dx + dy * dy);
@@ -241,11 +306,10 @@ const App = (() => {
     if (dashed) ctx.setLineDash([5, 5]);
     else        ctx.setLineDash([6, 4]);
 
-    // Line (shortened to not overlap arrowhead)
     const headLen = 12;
     const angle   = Math.atan2(dy, dx);
-    const ex = x2 - Math.cos(angle) * headLen * 0.5;
-    const ey = y2 - Math.sin(angle) * headLen * 0.5;
+    const ex = withHead ? x2 - Math.cos(angle) * headLen * 0.5 : x2;
+    const ey = withHead ? y2 - Math.sin(angle) * headLen * 0.5 : y2;
 
     ctx.beginPath();
     ctx.moveTo(x1, y1);
@@ -253,19 +317,14 @@ const App = (() => {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Arrowhead
-    ctx.beginPath();
-    ctx.moveTo(x2, y2);
-    ctx.lineTo(
-      x2 - headLen * Math.cos(angle - Math.PI / 7),
-      y2 - headLen * Math.sin(angle - Math.PI / 7)
-    );
-    ctx.lineTo(
-      x2 - headLen * Math.cos(angle + Math.PI / 7),
-      y2 - headLen * Math.sin(angle + Math.PI / 7)
-    );
-    ctx.closePath();
-    ctx.fill();
+    if (withHead) {
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - headLen * Math.cos(angle - Math.PI / 7), y2 - headLen * Math.sin(angle - Math.PI / 7));
+      ctx.lineTo(x2 - headLen * Math.cos(angle + Math.PI / 7), y2 - headLen * Math.sin(angle + Math.PI / 7));
+      ctx.closePath();
+      ctx.fill();
+    }
     ctx.restore();
   }
 
@@ -319,16 +378,27 @@ const App = (() => {
   }
 
   // ── Mode ───────────────────────────────────────────────────────────────────
+  function setHint(text) {
+    const el = document.getElementById('tool-hint');
+    if (el) el.textContent = text;
+  }
+
   function setMode(m) {
     mode = m;
-    arrowSrcPid = null;
-    previewEnd  = null;
+    arrowSrcPid    = null;
+    arrowWaypoints = [];
+    previewEnd     = null;
     canvas.className = `mode-${m}`;
 
     ['select','arrow','erase'].forEach(id => {
       const btn = document.getElementById(`mode-${id}`);
       if (btn) btn.classList.toggle('active', id === m);
     });
+
+    if (m === 'arrow') setHint('Click a player to start path');
+    else if (m === 'erase') setHint('Click an arrow to erase');
+    else setHint('');
+
     render();
   }
 
@@ -363,9 +433,10 @@ const App = (() => {
       const arr = arrows[i];
       const p   = players.find(pl => pl.id === arr.pid);
       if (!p) continue;
-      const start = pxFromFrac(p.bx, p.by);
-      const end   = pxFromFrac(arr.tbx, arr.tby);
-      if (pointNearSegment(x, y, start.x, start.y, end.x, end.y, THRESHOLD)) return arr;
+      const pts = getPathPx(p, arr);
+      for (let j = 0; j < pts.length - 1; j++) {
+        if (pointNearSegment(x, y, pts[j].x, pts[j].y, pts[j+1].x, pts[j+1].y, THRESHOLD)) return arr;
+      }
     }
     return null;
   }
@@ -384,10 +455,27 @@ const App = (() => {
 
   // ── Canvas events ──────────────────────────────────────────────────────────
   function bindCanvasEvents() {
-    canvas.addEventListener('mousedown', onDown);
-    canvas.addEventListener('mousemove', onMove);
-    canvas.addEventListener('mouseup',   onUp);
+    canvas.addEventListener('mousedown',  onDown);
+    canvas.addEventListener('mousemove',  onMove);
+    canvas.addEventListener('mouseup',    onUp);
     canvas.addEventListener('mouseleave', onLeave);
+
+    // Double-click in arrow mode: finalise the path
+    canvas.addEventListener('dblclick', ev => {
+      if (mode === 'arrow' && arrowSrcPid) {
+        // Remove the waypoint added by the second mousedown of the dblclick
+        arrowWaypoints.pop();
+        finaliseArrow();
+      }
+    });
+
+    // Right-click in arrow mode: finalise path without adding a point
+    canvas.addEventListener('contextmenu', ev => {
+      if (mode === 'arrow' && arrowSrcPid) {
+        ev.preventDefault();
+        finaliseArrow();
+      }
+    });
 
     // Touch support
     canvas.addEventListener('touchstart',  e => { e.preventDefault(); onDown(e); }, { passive: false });
@@ -417,20 +505,30 @@ const App = (() => {
         // First click: select source player
         const p = getPlayerAt(x, y);
         if (p) {
-          arrowSrcPid = p.id;
-          previewEnd = { x, y };
+          arrowSrcPid    = p.id;
+          arrowWaypoints = [];
+          previewEnd     = { x, y };
+          setHint('Click to add waypoints · dbl-click or right-click to finish · Esc to cancel');
           render();
         }
       } else {
-        // Second click: set destination
-        const frac = fracFromPx(x, y);
-        pushUndo();
-        // Remove existing arrow for this player
-        arrows = arrows.filter(a => a.pid !== arrowSrcPid);
-        arrows.push({ pid: arrowSrcPid, tbx: frac.bx, tby: frac.by });
-        arrowSrcPid = null;
-        previewEnd  = null;
-        render();
+        const clickedPlayer = getPlayerAt(x, y);
+        if (clickedPlayer && clickedPlayer.id === arrowSrcPid) {
+          // Clicked same player — cancel
+          arrowSrcPid = null; arrowWaypoints = []; previewEnd = null;
+          setHint('Click a player to start path');
+          render();
+        } else {
+          // Add waypoint (at player pos if clicked player, else at canvas point)
+          const frac = clickedPlayer
+            ? { bx: clickedPlayer.bx, by: clickedPlayer.by }
+            : fracFromPx(x, y);
+          arrowWaypoints.push({ bx: frac.bx, by: frac.by });
+          previewEnd = { x, y };
+          // If clicked a different player, auto-finalise
+          if (clickedPlayer) { finaliseArrow(); setHint('Click a player to start path'); }
+          else render();
+        }
       }
     } else if (mode === 'erase') {
       const arr = getArrowAt(x, y);
@@ -477,6 +575,22 @@ const App = (() => {
       render();
     }
     dragging = null;
+  }
+
+  // ── Arrow path finalise ───────────────────────────────────────────────────
+  function finaliseArrow() {
+    if (!arrowSrcPid || arrowWaypoints.length === 0) {
+      arrowSrcPid = null; arrowWaypoints = []; previewEnd = null;
+      setHint('Click a player to start path');
+      render();
+      return;
+    }
+    pushUndo();
+    arrows = arrows.filter(a => a.pid !== arrowSrcPid);
+    arrows.push({ pid: arrowSrcPid, points: [...arrowWaypoints] });
+    arrowSrcPid = null; arrowWaypoints = []; previewEnd = null;
+    setHint('Click a player to start path');
+    render();
   }
 
   // ── Undo ───────────────────────────────────────────────────────────────────
@@ -545,8 +659,9 @@ const App = (() => {
           if (animating) stopAnimation(); else startAnimation();
           break;
         case 'escape':
-          arrowSrcPid = null;
-          previewEnd  = null;
+          arrowSrcPid    = null;
+          arrowWaypoints = [];
+          previewEnd     = null;
           render();
           // Close any open modal
           document.querySelectorAll('.modal-backdrop.open').forEach(m => m.classList.remove('open'));
@@ -624,10 +739,12 @@ const App = (() => {
       players = defaultPlayers();
     }
     puck = drill.puck ? { ...drill.puck } : { bx: 0.5, by: 0.5 };
-    arrows = (drill.arrows || []).map(a => ({ ...a }));
+    // Normalise legacy {pid,tbx,tby} format to {pid,points:[{bx,by}]}
+    arrows = (drill.arrows || []).map(a => normaliseArrow({ ...a }));
     undoStack = [];
-    arrowSrcPid = null;
-    previewEnd  = null;
+    arrowSrcPid    = null;
+    arrowWaypoints = [];
+    previewEnd     = null;
     render();
   }
 
