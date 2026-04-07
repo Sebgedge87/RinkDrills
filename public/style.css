@@ -1482,6 +1482,149 @@ kbd {
 .picker-item:hover { background: var(--accent); color: #fff; }
 .picker-item:hover .cat-badge { border-color: rgba(255,255,255,.4); color: #fff; }
 
+/* ── Roster ── */
+.roster-split {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  border-top: 1px solid var(--border);
+}
+
+.roster-teams-col {
+  width: 110px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.roster-players-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.roster-col-label {
+  padding: 6px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.roster-team-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.roster-team-item:hover { background: var(--surface2); }
+.roster-team-item.active { background: rgba(79,110,247,0.12); border-left: 2px solid var(--accent); }
+
+.roster-team-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+}
+
+.player-item:hover { background: var(--surface2); }
+
+.player-number {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  min-width: 20px;
+  text-align: center;
+}
+
+.player-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.player-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.player-pos {
+  font-size: 0.68rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ── Session Builder extras ── */
+.session-share-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(79,110,247,0.1);
+  border: 1px solid rgba(79,110,247,0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.share-banner-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.share-link-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  padding: 4px 8px;
+  outline: none;
+  min-width: 0;
+}
+
+/* Status dot in session list */
+.status-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 5px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.status-draft     { background: var(--text-dim); }
+.status-published { background: #2ecc71; }
+.status-completed { background: var(--accent); }
+
 /* ── Mobile ── */
 @media (max-width: 700px) {
   #hamburger-btn { display: flex; }

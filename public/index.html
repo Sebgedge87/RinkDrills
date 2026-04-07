@@ -30,6 +30,7 @@
         <button class="tab-btn" data-tab="sequences">Sequences</button>
         <button class="tab-btn" data-tab="schedule">Schedule</button>
         <button class="tab-btn" data-tab="sessions">Sessions</button>
+        <button class="tab-btn" data-tab="roster">Roster</button>
       </div>
 
       <!-- Drills tab -->
@@ -87,6 +88,26 @@
           <div class="empty-state">No sessions yet</div>
         </div>
         <button class="sidebar-action-btn" id="new-session-btn">＋ New Practice Session</button>
+      </div>
+
+      <!-- Roster tab -->
+      <div class="tab-panel" id="tab-roster">
+        <div class="roster-split">
+          <div class="roster-teams-col">
+            <div class="roster-col-label">Teams</div>
+            <div class="sidebar-list" id="roster-team-list">
+              <div class="empty-state">No teams yet</div>
+            </div>
+            <button class="sidebar-action-btn" id="new-team-btn">＋ New Team</button>
+          </div>
+          <div class="roster-players-col">
+            <div class="roster-col-label">Players</div>
+            <div class="sidebar-list" id="roster-player-list">
+              <div class="empty-state">Select a team</div>
+            </div>
+            <button class="sidebar-action-btn" id="add-player-btn" style="display:none">＋ Add Player</button>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -346,7 +367,7 @@
     <button class="modal-close" id="session-modal-close">✕</button>
     <h2>Practice Builder</h2>
 
-    <!-- Session meta -->
+    <!-- Row 1: name + team + focus + duration -->
     <div class="session-meta-row">
       <div class="form-group" style="flex:2;margin:0">
         <label for="session-name">Session Name *</label>
@@ -366,15 +387,47 @@
       </div>
     </div>
 
+    <!-- Row 2: date + time + location + status -->
+    <div class="session-meta-row">
+      <div class="form-group" style="flex:1;margin:0">
+        <label for="session-date">Date</label>
+        <input id="session-date" type="date">
+      </div>
+      <div class="form-group" style="width:110px;flex-shrink:0;margin:0">
+        <label for="session-time">Start Time</label>
+        <input id="session-time" type="time">
+      </div>
+      <div class="form-group" style="flex:2;margin:0">
+        <label for="session-location">Location</label>
+        <input id="session-location" type="text" placeholder="e.g. East Arena — Rink 2" maxlength="100">
+      </div>
+      <div class="form-group" style="width:120px;flex-shrink:0;margin:0">
+        <label for="session-status">Status</label>
+        <select id="session-status">
+          <option value="draft">Draft</option>
+          <option value="published">Published</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Share banner (shown when published) -->
+    <div id="session-share-banner" class="session-share-banner" style="display:none">
+      <span class="share-banner-label">🔗 Share link</span>
+      <input id="session-share-link" type="text" readonly class="share-link-input">
+      <button class="btn btn-secondary btn-sm" id="session-share-copy">Copy</button>
+    </div>
+
     <!-- Timeline bar -->
     <div class="session-timeline">
       <div class="timeline-bar" id="session-timeline-bar"></div>
       <div class="timeline-stats" id="session-timeline-stats"></div>
     </div>
 
-    <!-- Auto-distribute button -->
+    <!-- Toolbar -->
     <div class="session-toolbar">
-      <button class="btn btn-secondary btn-sm" id="session-auto-btn" title="Divide session time equally across all blocks">⏱ Auto-distribute time</button>
+      <button class="btn btn-secondary btn-sm" id="session-auto-btn">⏱ Auto-distribute time</button>
+      <button class="btn btn-secondary btn-sm" id="session-publish-btn">🔗 Publish &amp; Share</button>
     </div>
 
     <!-- Zone sections -->
@@ -388,12 +441,22 @@
   </div>
 </div>
 
+<!-- ── Roster Modal ────────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="roster-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="document.getElementById('roster-modal').classList.remove('open')">✕</button>
+    <h2 id="roster-modal-title">Team</h2>
+    <div id="roster-modal-body"></div>
+  </div>
+</div>
+
 <script src="rink.js"></script>
 <script src="sequencePlayer.js"></script>
 <script src="drillManager.js"></script>
 <script src="scheduleManager.js"></script>
 <script src="importManager.js"></script>
 <script src="sessionBuilder.js"></script>
+<script src="rosterManager.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

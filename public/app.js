@@ -87,6 +87,7 @@ const App = (() => {
     ScheduleManager.init();
     ImportManager.init();
     SessionBuilder.init();
+    RosterManager.init();
   }
 
   // ── Coordinate helpers ─────────────────────────────────────────────────────
