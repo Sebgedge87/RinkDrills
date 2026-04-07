@@ -155,7 +155,7 @@ const ScheduleManager = (() => {
   function buildEntryCard(entry, dateStr, idx) {
     const card = document.createElement('div');
     card.className = `entry-card entry-${entry.type}`;
-    const label = entry.type === 'drill' ? '🏒' : '📋';
+    const label = entry.type === 'drill' ? '🏒' : entry.type === 'session' ? '⚡' : '📋';
     card.innerHTML = `
       <div class="entry-card-inner">
         <span class="entry-time">${entry.time || ''}</span>
@@ -172,17 +172,25 @@ const ScheduleManager = (() => {
     return card;
   }
 
-  function openAddEntryForm(col, dateStr) {
-    // Remove any existing form
+  async function openAddEntryForm(col, dateStr) {
     col.querySelectorAll('.day-add-form').forEach(f => f.remove());
 
     const allDrills = DrillManager.getAllDrills();
     const allSeqs   = DrillManager.getAllSequences();
 
+    // Fetch sessions for the dropdown
+    let allSessions = [];
+    try {
+      const res = await fetch('/api/sessions');
+      const json = await res.json();
+      if (json.success) allSessions = json.data;
+    } catch (_) {}
+
     const form = document.createElement('div');
     form.className = 'day-add-form';
     form.innerHTML = `
       <select class="add-entry-type">
+        <option value="session">Practice Session</option>
         <option value="drill">Drill</option>
         <option value="sequence">Sequence</option>
       </select>
@@ -198,26 +206,36 @@ const ScheduleManager = (() => {
     function populateRef(type) {
       const refSel = form.querySelector('.add-entry-ref');
       refSel.innerHTML = '';
-      const items = type === 'drill' ? allDrills : allSeqs;
+      const items = type === 'drill' ? allDrills : type === 'sequence' ? allSeqs : allSessions;
+      if (items.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = type === 'session' ? '— No sessions yet —' : '— None —';
+        refSel.appendChild(opt);
+        return;
+      }
       items.forEach(item => {
         const opt = document.createElement('option');
         opt.value = item.id;
-        opt.textContent = item.name;
+        const meta = type === 'session'
+          ? [item.date, item.start_time, item.team_age].filter(Boolean).join(' · ')
+          : '';
+        opt.textContent = item.name + (meta ? ` (${meta})` : '');
         refSel.appendChild(opt);
       });
     }
 
     const typeSel = form.querySelector('.add-entry-type');
-    populateRef('drill');
+    populateRef('session');
     typeSel.addEventListener('change', () => populateRef(typeSel.value));
 
     form.querySelector('.add-entry-save').addEventListener('click', () => {
-      const type   = typeSel.value;
-      const refSel = form.querySelector('.add-entry-ref');
-      const refId  = Number(refSel.value);
+      const type    = typeSel.value;
+      const refSel  = form.querySelector('.add-entry-ref');
+      const refId   = Number(refSel.value) || refSel.value;
       const refName = refSel.options[refSel.selectedIndex]?.text || '';
-      const time   = form.querySelector('.add-entry-time').value;
-      const note   = form.querySelector('.add-entry-note').value.trim();
+      const time    = form.querySelector('.add-entry-time').value;
+      const note    = form.querySelector('.add-entry-note').value.trim();
       if (!refId) return;
       currentEntries.push({ date: dateStr, type, ref_id: refId, ref_name: refName, time, note });
       renderWeekGrid();
@@ -225,7 +243,7 @@ const ScheduleManager = (() => {
 
     form.querySelector('.add-entry-cancel').addEventListener('click', () => form.remove());
     col.appendChild(form);
-    form.querySelector('.add-entry-type').focus();
+    typeSel.focus();
   }
 
   function removeEntry(dateStr, idx) {

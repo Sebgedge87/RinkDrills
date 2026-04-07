@@ -25,6 +25,14 @@
 
     <!-- ── Sidebar ─────────────────────────────────────────────────────────── -->
     <aside id="sidebar">
+      <!-- Top nav tabs -->
+      <div class="sidebar-tabs">
+        <button class="tab-btn active" data-tab="drills">Drills</button>
+        <button class="tab-btn" data-tab="sequences">Seq</button>
+        <button class="tab-btn" data-tab="schedule">Schedule</button>
+        <button class="tab-btn" data-tab="sessions">Sessions</button>
+        <button class="tab-btn" data-tab="roster">Roster</button>
+      </div>
       <!-- Tab panels fill the space -->
       <!-- Drills tab -->
       <div class="tab-panel active" id="tab-drills">
@@ -85,45 +93,21 @@
 
       <!-- Roster tab -->
       <div class="tab-panel" id="tab-roster">
-        <div class="roster-split">
-          <div class="roster-teams-col">
-            <div class="roster-col-label">Teams</div>
-            <div class="sidebar-list" id="roster-team-list">
-              <div class="empty-state">No teams yet</div>
-            </div>
-            <button class="sidebar-action-btn" id="new-team-btn">＋ New Team</button>
+        <!-- Team selector row -->
+        <div class="roster-team-bar">
+          <div class="roster-team-chips" id="roster-team-chips">
+            <div class="empty-state" style="padding:8px 10px;font-size:0.75rem">No teams</div>
           </div>
-          <div class="roster-players-col">
-            <div class="roster-col-label">Players</div>
-            <div class="sidebar-list" id="roster-player-list">
-              <div class="empty-state">Select a team</div>
-            </div>
-            <button class="sidebar-action-btn" id="add-player-btn" style="display:none">＋ Add Player</button>
-          </div>
+          <button class="roster-new-team-btn" id="new-team-btn" title="New Team">＋</button>
         </div>
-      </div>
-      <!-- Bottom nav tabs -->
-      <div class="sidebar-tabs">
-        <button class="tab-btn active" data-tab="drills">
-          <span class="tab-icon">🏒</span>
-          <span class="tab-label">Drills</span>
-        </button>
-        <button class="tab-btn" data-tab="sequences">
-          <span class="tab-icon">📋</span>
-          <span class="tab-label">Sequences</span>
-        </button>
-        <button class="tab-btn" data-tab="schedule">
-          <span class="tab-icon">📅</span>
-          <span class="tab-label">Schedule</span>
-        </button>
-        <button class="tab-btn" data-tab="sessions">
-          <span class="tab-icon">⚡</span>
-          <span class="tab-label">Sessions</span>
-        </button>
-        <button class="tab-btn" data-tab="roster">
-          <span class="tab-icon">👥</span>
-          <span class="tab-label">Roster</span>
-        </button>
+        <!-- Players list (full width) -->
+        <div class="roster-col-label" id="roster-players-label" style="display:none">Players</div>
+        <div class="sidebar-list" id="roster-player-list">
+          <div class="empty-state">Select a team above</div>
+        </div>
+        <button class="sidebar-action-btn" id="add-player-btn" style="display:none">＋ Add Player</button>
+        <!-- Keep hidden list for compatibility -->
+        <div id="roster-team-list" style="display:none"></div>
       </div>
     </aside>
 
@@ -132,46 +116,6 @@
 
     <!-- ── Canvas area ──────────────────────────────────────────────────────── -->
     <div id="canvas-area">
-
-      <!-- Toolbar -->
-      <div id="toolbar">
-        <div class="tool-group">
-          <button class="tool-btn active" id="mode-select" title="Select &amp; drag players">
-            ↖ Select <kbd>S</kbd>
-          </button>
-          <button class="tool-btn" id="mode-arrow" title="Click player then destination to draw arrow">
-            → Arrow <kbd>A</kbd>
-          </button>
-          <button class="tool-btn" id="mode-erase" title="Click an arrow to erase it">
-            ✕ Erase <kbd>E</kbd>
-          </button>
-        </div>
-
-        <div class="tool-sep"></div>
-
-        <div class="tool-group">
-          <button class="tool-btn" id="animate-btn" title="Animate all arrows (Space)">
-            ▶ Animate <kbd>Space</kbd>
-          </button>
-          <label class="speed-control" title="Playback speed">
-            <span class="speed-icon">🐢</span>
-            <input type="range" id="speed-slider" min="0.0002" max="0.004" step="0.0001" value="0.0008">
-            <span class="speed-icon">🐇</span>
-            <span id="speed-label" class="speed-pct">100%</span>
-          </label>
-        </div>
-
-        <div class="tool-sep"></div>
-
-        <div class="tool-group">
-          <button class="tool-btn" id="clear-arrows-btn" title="Remove all arrows">
-            ✕ Clear Arrows
-          </button>
-          <button class="tool-btn danger" id="reset-btn" title="Reset to default player positions">
-            ↺ Reset Board
-          </button>
-        </div>
-      </div>
 
       <!-- Rink canvas -->
       <div id="canvas-wrapper">
@@ -200,6 +144,31 @@
           <button class="seq-nav-btn" id="seq-next-btn">Next ▶</button>
           <button id="seq-close-btn">✕ End Sequence</button>
         </div>
+      </div>
+
+      <!-- Bottom toolbar -->
+      <div id="toolbar">
+        <div class="tool-group">
+          <button class="tool-btn active" id="mode-select" title="Select &amp; drag players (S)">↖</button>
+          <button class="tool-btn" id="mode-arrow" title="Draw arrow — click player then waypoints, double-click or Esc to finish (A)">→</button>
+          <button class="tool-btn" id="mode-erase" title="Erase arrow (E)">✕</button>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="tool-btn" id="animate-btn" title="Animate arrows (Space)">▶</button>
+          <label class="speed-control" title="Playback speed">
+            <span class="speed-icon">🐢</span>
+            <input type="range" id="speed-slider" min="0.0002" max="0.004" step="0.0001" value="0.0008">
+            <span class="speed-icon">🐇</span>
+            <span id="speed-label" class="speed-pct">100%</span>
+          </label>
+        </div>
+        <div class="tool-sep"></div>
+        <div class="tool-group">
+          <button class="tool-btn" id="clear-arrows-btn" title="Clear all arrows">⊘</button>
+          <button class="tool-btn danger" id="reset-btn" title="Reset board">↺</button>
+        </div>
+        <div class="tool-hint" id="tool-hint"></div>
       </div>
 
     </div><!-- /canvas-area -->

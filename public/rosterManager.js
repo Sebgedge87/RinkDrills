@@ -9,8 +9,9 @@ const RosterManager = (() => {
   let players = [];
   let activeTeamId = null;
 
-  const teamList   = document.getElementById('roster-team-list');
+  const teamChips  = document.getElementById('roster-team-chips');
   const playerList = document.getElementById('roster-player-list');
+  const playersLabel = document.getElementById('roster-players-label');
   const modal      = document.getElementById('roster-modal');
   const modalTitle = document.getElementById('roster-modal-title');
   const modalBody  = document.getElementById('roster-modal-body');
@@ -37,31 +38,35 @@ const RosterManager = (() => {
     } catch (e) { showToast('Failed to load players', 'error'); }
   }
 
-  // ── Render teams ──────────────────────────────────────────────────────────
+  // ── Render teams as chips ─────────────────────────────────────────────────
   function renderTeams() {
+    teamChips.innerHTML = '';
     if (teams.length === 0) {
-      teamList.innerHTML = '<div class="empty-state">No teams yet</div>';
-      playerList.innerHTML = '';
+      teamChips.innerHTML = '<span style="font-size:0.72rem;color:var(--text-dim);padding:4px 2px">No teams</span>';
+      playerList.innerHTML = '<div class="empty-state">Add a team first</div>';
+      if (playersLabel) playersLabel.style.display = 'none';
       return;
     }
-    teamList.innerHTML = '';
     teams.forEach(t => {
-      const el = document.createElement('div');
-      el.className = 'roster-team-item' + (t.id === activeTeamId ? ' active' : '');
-      el.innerHTML = `
-        <div class="roster-team-body" style="flex:1;min-width:0">
-          <div class="roster-team-name">${esc(t.name)}</div>
-          <div class="seq-meta">${[t.age_group, t.season].filter(Boolean).join(' · ') || 'No details'}</div>
-        </div>
-        <div class="item-actions">
-          <button class="icon-btn edit-team-btn" data-id="${t.id}" title="Edit team">✏</button>
-          <button class="icon-btn danger del-team-btn" data-id="${t.id}" title="Delete team">✕</button>
-        </div>
-      `;
-      el.querySelector('.roster-team-body').addEventListener('click', () => selectTeam(t.id));
-      el.querySelector('.edit-team-btn').addEventListener('click', e => { e.stopPropagation(); openTeamModal(t); });
-      el.querySelector('.del-team-btn').addEventListener('click', e => { e.stopPropagation(); deleteTeam(t.id); });
-      teamList.appendChild(el);
+      const chip = document.createElement('button');
+      chip.className = 'team-chip' + (t.id === activeTeamId ? ' active' : '');
+      const meta = [t.age_group, t.season].filter(Boolean).join(' ');
+      chip.title = [t.name, meta].filter(Boolean).join(' — ');
+      chip.innerHTML = esc(t.name);
+      chip.addEventListener('click', () => selectTeam(t.id));
+      chip.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        openTeamModal(t);
+      });
+      // Long-press edit on active chip
+      if (t.id === activeTeamId) {
+        const editBtn = document.createElement('span');
+        editBtn.className = 'chip-edit';
+        editBtn.textContent = '✏';
+        editBtn.addEventListener('click', ev => { ev.stopPropagation(); openTeamModal(t); });
+        chip.appendChild(editBtn);
+      }
+      teamChips.appendChild(chip);
     });
 
     if (activeTeamId) loadPlayers(activeTeamId);
@@ -77,25 +82,44 @@ const RosterManager = (() => {
   function renderPlayers(teamId) {
     const addBtn = document.getElementById('add-player-btn');
     if (addBtn) addBtn.style.display = 'block';
+    if (playersLabel) playersLabel.style.display = 'block';
+
+    const team = teams.find(t => t.id === teamId);
+    if (playersLabel && team) {
+      const meta = [team.age_group, team.season].filter(Boolean).join(' · ');
+      playersLabel.textContent = team.name + (meta ? ` — ${meta}` : '');
+    }
 
     if (players.length === 0) {
-      playerList.innerHTML = '<div class="empty-state">No players — add some below</div>';
+      playerList.innerHTML = '<div class="empty-state">No players — add one below</div>';
       return;
     }
     playerList.innerHTML = '';
-    players.forEach(p => {
+
+    // Sort by number then name
+    const sorted = [...players].sort((a, b) => {
+      const na = parseInt(a.number) || 999, nb = parseInt(b.number) || 999;
+      return na !== nb ? na - nb : a.name.localeCompare(b.name);
+    });
+
+    sorted.forEach(p => {
       const el = document.createElement('div');
       el.className = 'player-item';
-      const posColor = { F: '#2196f3', D: '#f44336', G: '#ff9800' }[p.position] || '#607d8b';
+      const posColor = { F: '#4f9cf7', D: '#e63946', G: '#f4a261' }[p.position] || 'var(--text-dim)';
+      // Show initials if name is long
+      const nameParts = p.name.trim().split(/\s+/);
+      const displayName = nameParts.length > 1
+        ? `${nameParts[0]} ${nameParts.slice(1).map(n => n[0] + '.').join(' ')}`
+        : p.name;
       el.innerHTML = `
         <div class="player-number">${esc(p.number || '—')}</div>
         <div class="player-info">
-          <span class="player-name">${esc(p.name)}</span>
+          <span class="player-name" title="${esc(p.name)}">${esc(displayName)}</span>
           ${p.position ? `<span class="player-pos" style="color:${posColor}">${esc(p.position)}</span>` : ''}
         </div>
         <div class="item-actions">
-          <button class="icon-btn edit-player-btn" data-id="${p.id}" title="Edit player">✏</button>
-          <button class="icon-btn danger del-player-btn" data-id="${p.id}" title="Remove player">✕</button>
+          <button class="icon-btn edit-player-btn" data-id="${p.id}" title="Edit">✏</button>
+          <button class="icon-btn danger del-player-btn" data-id="${p.id}" title="Remove">✕</button>
         </div>
       `;
       el.querySelector('.edit-player-btn').addEventListener('click', e => { e.stopPropagation(); openPlayerModal(p); });
@@ -207,7 +231,13 @@ const RosterManager = (() => {
       const res  = await fetch(`/api/teams/${id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      if (activeTeamId === id) { activeTeamId = null; playerList.innerHTML = ''; }
+      if (activeTeamId === id) {
+        activeTeamId = null;
+        playerList.innerHTML = '<div class="empty-state">Select a team above</div>';
+        if (playersLabel) playersLabel.style.display = 'none';
+        const addBtn = document.getElementById('add-player-btn');
+        if (addBtn) addBtn.style.display = 'none';
+      }
       await loadTeams();
       showToast('Team deleted', 'success');
     } catch (e) { showToast('Delete failed: ' + e.message, 'error'); }
@@ -232,6 +262,12 @@ const RosterManager = (() => {
       openPlayerModal(null);
     });
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+    // Right-click on chips area: edit active team
+    teamChips.addEventListener('contextmenu', e => {
+      // handled per-chip above, stop propagation to avoid bubbling
+      e.preventDefault();
+    });
   }
 
   return { init, loadTeams, getTeams: () => teams, getPlayers: () => players };

@@ -116,53 +116,42 @@ html, body {
   left: 0;
 }
 
-/* ── Sidebar bottom nav tabs ── */
+/* ── Sidebar top tabs ── */
 .sidebar-tabs {
   display: flex;
   flex-shrink: 0;
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
 .tab-btn {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  padding: 8px 2px 7px;
+  padding: 0 4px;
+  height: 36px;
   background: none;
   border: none;
+  border-bottom: 2px solid transparent;
   color: var(--text-dim);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
-  border-top: 2px solid transparent;
-  min-width: 0;
-}
-
-.tab-btn:hover:not(.active) {
-  color: var(--text);
-  background: var(--surface2);
-}
-
-.tab-btn.active {
-  color: var(--accent);
-  border-top-color: var(--accent);
-  background: rgba(79,110,247,0.06);
-}
-
-.tab-icon {
-  font-size: 1rem;
-  line-height: 1;
-}
-
-.tab-label {
-  font-size: 0.6rem;
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tab-btn:hover:not(.active) {
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .tab-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
@@ -362,15 +351,15 @@ html, body {
   position: relative;
 }
 
-/* Toolbar */
+/* Toolbar — bottom of canvas */
 #toolbar {
   height: var(--toolbar-h);
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-top: 1px solid var(--border);
   display: flex;
   align-items: center;
   padding: 0 12px;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
   flex-wrap: nowrap;
   overflow-x: auto;
@@ -390,19 +379,22 @@ html, body {
 }
 
 .tool-btn {
-  padding: 6px 12px;
+  width: 34px;
+  height: 30px;
+  padding: 0;
   background: var(--surface2);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.12s;
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .tool-btn:hover { background: var(--border); }
@@ -414,6 +406,16 @@ html, body {
 }
 
 .tool-btn.danger:hover { background: var(--danger); border-color: var(--danger); color: #fff; }
+
+.tool-hint {
+  flex: 1;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  padding: 0 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 kbd {
   font-size: 0.65rem;
@@ -1007,8 +1009,9 @@ kbd {
   border: 1px solid transparent;
 }
 
-.entry-drill  { background: rgba(79,110,247,0.15); border-color: rgba(79,110,247,0.3); }
-.entry-sequence { background: rgba(244,162,97,0.15); border-color: rgba(244,162,97,0.3); }
+.entry-drill     { background: rgba(79,110,247,0.15); border-color: rgba(79,110,247,0.3); }
+.entry-sequence  { background: rgba(244,162,97,0.15); border-color: rgba(244,162,97,0.3); }
+.entry-session   { background: rgba(46,204,113,0.15); border-color: rgba(46,204,113,0.35); }
 
 .entry-card-inner {
   display: flex;
@@ -1504,79 +1507,107 @@ kbd {
 .picker-item:hover .cat-badge { border-color: rgba(255,255,255,.4); color: #fff; }
 
 /* ── Roster ── */
-.roster-split {
-  display: flex;
-  flex: 1;
-  overflow: hidden;
-  border-top: 1px solid var(--border);
-}
 
-.roster-teams-col {
-  width: 110px;
-  flex-shrink: 0;
-  border-right: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.roster-players-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-
-.roster-col-label {
-  padding: 6px 8px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.roster-team-item {
+/* Team selector bar at the top */
+.roster-team-bar {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 6px 8px;
-  cursor: pointer;
   border-bottom: 1px solid var(--border);
-  transition: background 0.12s;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
-.roster-team-item:hover { background: var(--surface2); }
-.roster-team-item.active { background: rgba(79,110,247,0.12); border-left: 2px solid var(--accent); }
+.roster-team-chips {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+  /* hide scrollbar */
+  scrollbar-width: none;
+}
+.roster-team-chips::-webkit-scrollbar { display: none; }
 
-.roster-team-name {
-  font-size: 0.8rem;
-  font-weight: 600;
+.team-chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
   white-space: nowrap;
+  transition: all 0.12s;
+  flex-shrink: 0;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.team-chip:hover { background: var(--border); color: var(--text); }
+.team-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.team-chip .chip-edit {
+  display: none;
+  font-size: 0.6rem;
+  margin-left: 3px;
+  opacity: 0.7;
+}
+.team-chip.active:hover .chip-edit { display: inline; }
 
+.roster-new-team-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: all 0.12s;
+}
+.roster-new-team-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.roster-col-label {
+  padding: 4px 8px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+/* Player rows — full sidebar width */
 .player-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--border);
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(46,50,80,0.5);
   transition: background 0.12s;
+  cursor: default;
 }
 
 .player-item:hover { background: var(--surface2); }
 
 .player-number {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 700;
   color: var(--text-dim);
-  min-width: 20px;
-  text-align: center;
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
 }
 
 .player-info {
@@ -1588,17 +1619,19 @@ kbd {
 }
 
 .player-name {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--text);
 }
 
 .player-pos {
-  font-size: 0.68rem;
+  font-size: 0.7rem;
   font-weight: 700;
   flex-shrink: 0;
+  min-width: 14px;
 }
 
 /* ── Session Builder extras ── */
