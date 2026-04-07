@@ -1,34 +1,41 @@
 /**
  * sessionBuilder.js — Practice Builder
- * Timeline view with zones, drag-and-drop blocks, auto time distribution
+ * Timeline view with zones, drag-and-drop blocks, auto time distribution,
+ * date/time/location scheduling, publish + share link generation
  */
 
 const SessionBuilder = (() => {
 
   const ZONES = [
-    { id: 'warmup',         label: 'Warmup',          color: '#ff9800' },
-    { id: 'skills',         label: 'Skills',           color: '#2196f3' },
-    { id: 'game_situation', label: 'Game Situation',   color: '#9c27b0' },
-    { id: 'conditioning',   label: 'Conditioning',     color: '#f44336' },
-    { id: 'cooldown',       label: 'Cooldown',         color: '#4caf50' },
+    { id: 'warmup',         label: 'Warmup',        color: '#ff9800' },
+    { id: 'skills',         label: 'Skills',         color: '#2196f3' },
+    { id: 'game_situation', label: 'Game Situation', color: '#9c27b0' },
+    { id: 'conditioning',   label: 'Conditioning',   color: '#f44336' },
+    { id: 'cooldown',       label: 'Cooldown',       color: '#4caf50' },
   ];
 
-  let sessions      = [];
-  let editingId     = null;
-  let blocks        = [];   // [{id, zone, type, ref_id, ref_name, duration_mins, notes}]
-  let activePicker  = null; // zone id where picker is open
-  let dragSrcIdx    = null;
+  let sessions     = [];
+  let editingId    = null;
+  let blocks       = [];
+  let activePicker = null;
+  let dragSrcIdx   = null;
 
   // ── DOM ───────────────────────────────────────────────────────────────────
-  const modal        = document.getElementById('session-modal');
-  const sessionList  = document.getElementById('session-list');
-  const nameInput    = document.getElementById('session-name');
-  const teamInput    = document.getElementById('session-team');
-  const focusInput   = document.getElementById('session-focus');
-  const durInput     = document.getElementById('session-duration');
-  const timelineBar  = document.getElementById('session-timeline-bar');
+  const modal         = document.getElementById('session-modal');
+  const sessionList   = document.getElementById('session-list');
+  const nameInput     = document.getElementById('session-name');
+  const teamInput     = document.getElementById('session-team');
+  const focusInput    = document.getElementById('session-focus');
+  const durInput      = document.getElementById('session-duration');
+  const dateInput     = document.getElementById('session-date');
+  const timeInput     = document.getElementById('session-time');
+  const locationInput = document.getElementById('session-location');
+  const statusSelect  = document.getElementById('session-status');
+  const timelineBar   = document.getElementById('session-timeline-bar');
   const timelineStats = document.getElementById('session-timeline-stats');
-  const zonesEl      = document.getElementById('session-zones-list');
+  const zonesEl       = document.getElementById('session-zones-list');
+  const shareBanner   = document.getElementById('session-share-banner');
+  const shareLink     = document.getElementById('session-share-link');
 
   // ── Init ──────────────────────────────────────────────────────────────────
   async function init() {
@@ -54,45 +61,64 @@ const SessionBuilder = (() => {
     sessions.forEach(s => {
       const el = document.createElement('div');
       el.className = 'seq-item';
+      const statusDot = `<span class="status-dot status-${s.status || 'draft'}" title="${s.status || 'draft'}"></span>`;
       el.innerHTML = `
         <div class="seq-item-body" style="flex:1;min-width:0">
-          <div class="seq-name">${esc(s.name)}</div>
+          <div class="seq-name">${statusDot}${esc(s.name)}</div>
           <div class="seq-meta">
-            ${s.team_age ? esc(s.team_age) + ' · ' : ''}${s.duration_mins} min
-            ${s.focus ? ' · ' + esc(s.focus) : ''}
+            ${s.date ? esc(s.date) + ' ' : ''}${s.start_time ? esc(s.start_time) + ' · ' : ''}${s.duration_mins} min
+            ${s.team_age ? ' · ' + esc(s.team_age) : ''}
             ${s.is_template ? ' · <span style="color:var(--accent)">template</span>' : ''}
           </div>
         </div>
         <div class="item-actions">
+          ${s.share_token ? `<button class="icon-btn share-copy-btn" title="Copy share link" data-token="${s.share_token}">🔗</button>` : ''}
+          <button class="icon-btn ics-btn" title="Download .ics calendar file" data-id="${s.id}">📅</button>
           <button class="icon-btn" title="Open in Builder" data-id="${s.id}">✏</button>
           <button class="icon-btn danger del-session-btn" title="Delete" data-id="${s.id}">✕</button>
         </div>
       `;
-      el.querySelector('.icon-btn:not(.del-session-btn)').addEventListener('click', e => { e.stopPropagation(); openModal(s.id); });
-      el.querySelector('.del-session-btn').addEventListener('click', e => { e.stopPropagation(); deleteSession(s.id); });
+      el.querySelector('.icon-btn:not(.del-session-btn):not(.ics-btn):not(.share-copy-btn)')
+        .addEventListener('click', e => { e.stopPropagation(); openModal(s.id); });
+      el.querySelector('.del-session-btn')
+        .addEventListener('click', e => { e.stopPropagation(); deleteSession(s.id); });
+      el.querySelector('.ics-btn')
+        .addEventListener('click', e => { e.stopPropagation(); downloadICS(s.id); });
+      const copyBtn = el.querySelector('.share-copy-btn');
+      if (copyBtn) copyBtn.addEventListener('click', e => { e.stopPropagation(); copyShareLink(s.share_token); });
       sessionList.appendChild(el);
     });
   }
 
   // ── Open / close modal ────────────────────────────────────────────────────
   function openModal(sessionId) {
-    editingId = sessionId || null;
+    editingId    = sessionId || null;
     activePicker = null;
+    shareBanner.style.display = 'none';
 
     if (sessionId) {
       const s = sessions.find(x => x.id === sessionId);
       if (s) {
-        nameInput.value  = s.name;
-        teamInput.value  = s.team_age || '';
-        focusInput.value = s.focus || '';
-        durInput.value   = s.duration_mins || 60;
+        nameInput.value     = s.name;
+        teamInput.value     = s.team_age || '';
+        focusInput.value    = s.focus || '';
+        durInput.value      = s.duration_mins || 60;
+        dateInput.value     = s.date || '';
+        timeInput.value     = s.start_time || '';
+        locationInput.value = s.location || '';
+        statusSelect.value  = s.status || 'draft';
         blocks = (Array.isArray(s.blocks) ? s.blocks : []).map(b => ({ ...b }));
+        if (s.share_token) showShareBanner(s.share_token);
       }
     } else {
-      nameInput.value  = '';
-      teamInput.value  = '';
-      focusInput.value = '';
-      durInput.value   = 60;
+      nameInput.value     = '';
+      teamInput.value     = '';
+      focusInput.value    = '';
+      durInput.value      = 60;
+      dateInput.value     = '';
+      timeInput.value     = '';
+      locationInput.value = '';
+      statusSelect.value  = 'draft';
       blocks = [];
     }
 
@@ -105,8 +131,14 @@ const SessionBuilder = (() => {
   function closeModal() {
     modal.classList.remove('open');
     editingId = null;
-    blocks = [];
+    blocks    = [];
     activePicker = null;
+  }
+
+  function showShareBanner(token) {
+    const url = `${location.origin}/session/${token}`;
+    shareLink.value = url;
+    shareBanner.style.display = 'flex';
   }
 
   // ── Timeline bar ──────────────────────────────────────────────────────────
@@ -115,12 +147,10 @@ const SessionBuilder = (() => {
     const usedMins  = blocks.reduce((s, b) => s + (parseInt(b.duration_mins) || 0), 0);
     const remaining = totalMins - usedMins;
 
-    // Build zone totals
     const zoneMins = {};
     ZONES.forEach(z => { zoneMins[z.id] = 0; });
     blocks.forEach(b => { zoneMins[b.zone] = (zoneMins[b.zone] || 0) + (parseInt(b.duration_mins) || 0); });
 
-    // Render coloured bar segments
     timelineBar.innerHTML = '';
     ZONES.forEach(z => {
       if (!zoneMins[z.id]) return;
@@ -133,7 +163,6 @@ const SessionBuilder = (() => {
       timelineBar.appendChild(seg);
     });
 
-    // Remaining time slot
     if (remaining > 0) {
       const pct = (remaining / totalMins) * 100;
       const seg = document.createElement('div');
@@ -143,7 +172,6 @@ const SessionBuilder = (() => {
       timelineBar.appendChild(seg);
     }
 
-    // Stats row
     const overClass = remaining < 0 ? 'style="color:var(--danger)"' : '';
     timelineStats.innerHTML = `
       <span><strong>${totalMins}</strong> min session</span>
@@ -173,21 +201,17 @@ const SessionBuilder = (() => {
           <button class="zone-add-btn" data-zone="${zone.id}">＋ Add</button>
         </div>
         <div class="zone-blocks" id="zone-blocks-${zone.id}">
-          ${zoneBlocks.length === 0
-            ? `<div class="zone-empty">Click ＋ Add to add a drill or sequence</div>`
-            : ''}
+          ${zoneBlocks.length === 0 ? '<div class="zone-empty">Click ＋ Add to add a drill or sequence</div>' : ''}
         </div>
         <div class="zone-picker" id="zone-picker-${zone.id}" style="display:none"></div>
       `;
 
-      // Render blocks
       const blocksEl = section.querySelector(`#zone-blocks-${zone.id}`);
-      zoneBlocks.forEach((block, i) => {
+      zoneBlocks.forEach(block => {
         const globalIdx = blocks.indexOf(block);
         blocksEl.appendChild(buildBlockCard(block, globalIdx, zone.color));
       });
 
-      // Add button
       section.querySelector('.zone-add-btn').addEventListener('click', e => {
         e.stopPropagation();
         togglePicker(zone.id, section.querySelector(`#zone-picker-${zone.id}`));
@@ -227,11 +251,9 @@ const SessionBuilder = (() => {
       renderTimeline();
       refreshZoneMins();
     });
-
     card.querySelector('.block-notes-input').addEventListener('input', e => {
       blocks[idx].notes = e.target.value;
     });
-
     card.querySelector('.block-remove').addEventListener('click', e => {
       e.stopPropagation();
       blocks.splice(idx, 1);
@@ -239,7 +261,6 @@ const SessionBuilder = (() => {
       renderTimeline();
     });
 
-    // Drag reorder
     card.addEventListener('dragstart', e => {
       dragSrcIdx = idx;
       card.style.opacity = '0.4';
@@ -253,8 +274,7 @@ const SessionBuilder = (() => {
       card.classList.remove('drag-over');
       if (dragSrcIdx === null || dragSrcIdx === idx) return;
       const moved = blocks.splice(dragSrcIdx, 1)[0];
-      const toIdx = dragSrcIdx < idx ? idx - 1 : idx;
-      blocks.splice(toIdx, 0, moved);
+      blocks.splice(dragSrcIdx < idx ? idx - 1 : idx, 0, moved);
       dragSrcIdx = null;
       renderZones();
       renderTimeline();
@@ -265,17 +285,10 @@ const SessionBuilder = (() => {
 
   // ── Picker ────────────────────────────────────────────────────────────────
   function togglePicker(zoneId, pickerEl) {
-    // Close any open picker first
     document.querySelectorAll('.zone-picker').forEach(p => {
-      if (p.id !== `zone-picker-${zoneId}`) { p.style.display = 'none'; }
+      if (p.id !== `zone-picker-${zoneId}`) p.style.display = 'none';
     });
-
-    if (activePicker === zoneId) {
-      pickerEl.style.display = 'none';
-      activePicker = null;
-      return;
-    }
-
+    if (activePicker === zoneId) { pickerEl.style.display = 'none'; activePicker = null; return; }
     activePicker = zoneId;
     renderPicker(zoneId, pickerEl);
     pickerEl.style.display = 'block';
@@ -299,9 +312,9 @@ const SessionBuilder = (() => {
     let currentType = 'drill';
 
     function renderPickerList(type, query) {
-      const items = type === 'drill' ? allDrills : allSequences;
+      const items    = type === 'drill' ? allDrills : allSequences;
       const filtered = items.filter(i => i.name.toLowerCase().includes((query || '').toLowerCase()));
-      const listEl = pickerEl.querySelector('.picker-list');
+      const listEl   = pickerEl.querySelector('.picker-list');
       listEl.innerHTML = '';
       if (filtered.length === 0) {
         listEl.innerHTML = '<div class="empty-state" style="padding:10px">Nothing found</div>';
@@ -328,24 +341,14 @@ const SessionBuilder = (() => {
         renderPickerList(currentType, pickerEl.querySelector('.picker-search').value);
       });
     });
-
     pickerEl.querySelector('.picker-search').addEventListener('input', e => {
       renderPickerList(currentType, e.target.value);
     });
-
     renderPickerList('drill', '');
   }
 
   function addBlock(zoneId, type, refId, refName) {
-    blocks.push({
-      id: Date.now() + Math.random(),
-      zone: zoneId,
-      type,
-      ref_id: refId,
-      ref_name: refName,
-      duration_mins: 5,
-      notes: ''
-    });
+    blocks.push({ id: Date.now() + Math.random(), zone: zoneId, type, ref_id: refId, ref_name: refName, duration_mins: 5, notes: '' });
     renderZones();
     renderTimeline();
   }
@@ -356,9 +359,7 @@ const SessionBuilder = (() => {
     const totalMins = parseInt(durInput.value) || 60;
     const perBlock  = Math.floor(totalMins / blocks.length);
     const remainder = totalMins - (perBlock * blocks.length);
-    blocks.forEach((b, i) => {
-      b.duration_mins = perBlock + (i === 0 ? remainder : 0);
-    });
+    blocks.forEach((b, i) => { b.duration_mins = perBlock + (i === 0 ? remainder : 0); });
     renderZones();
     renderTimeline();
     showToast('Time distributed evenly', 'success');
@@ -372,27 +373,49 @@ const SessionBuilder = (() => {
 
     const body = {
       name,
-      team_age:     teamInput.value.trim(),
-      focus:        focusInput.value.trim(),
+      team_age:      teamInput.value.trim(),
+      focus:         focusInput.value.trim(),
       duration_mins: parseInt(durInput.value) || 60,
+      date:          dateInput.value,
+      start_time:    timeInput.value,
+      location:      locationInput.value.trim(),
+      status:        statusSelect.value,
       blocks,
-      is_template:  asTemplate ? 1 : 0
+      is_template:   asTemplate ? 1 : 0
     };
 
     try {
-      const res = await fetch(editingId ? `/api/sessions/${editingId}` : '/api/sessions', {
+      const res  = await fetch(editingId ? `/api/sessions/${editingId}` : '/api/sessions', {
         method: editingId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
-      closeModal();
+      editingId = json.data.id;
       await load();
+      // If status is published and no token yet, publish it
+      if (body.status === 'published' && !json.data.share_token) {
+        await publishSession();
+      } else if (json.data.share_token) {
+        showShareBanner(json.data.share_token);
+      }
       showToast(asTemplate ? 'Saved as template!' : 'Session saved!', 'success');
     } catch (e) {
       showToast('Save failed: ' + e.message, 'error');
     }
+  }
+
+  async function publishSession() {
+    if (!editingId) { showToast('Save the session first', 'error'); return; }
+    try {
+      const res  = await fetch(`/api/sessions/${editingId}/publish`, { method: 'POST' });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      await load();
+      showShareBanner(json.data.share_token);
+      showToast('Session published! Share link ready.', 'success');
+    } catch (e) { showToast('Publish failed: ' + e.message, 'error'); }
   }
 
   async function deleteSession(id) {
@@ -406,14 +429,20 @@ const SessionBuilder = (() => {
     } catch (e) { showToast('Delete failed: ' + e.message, 'error'); }
   }
 
-  // ── Refresh zone minute totals without full re-render ─────────────────────
+  function downloadICS(id) {
+    window.location.href = `/api/sessions/${id}/ics`;
+  }
+
+  function copyShareLink(token) {
+    const url = `${location.origin}/session/${token}`;
+    navigator.clipboard.writeText(url).then(() => showToast('Share link copied!', 'success'));
+  }
+
   function refreshZoneMins() {
     ZONES.forEach(zone => {
-      const zoneMins = blocks
-        .filter(b => b.zone === zone.id)
-        .reduce((s, b) => s + (parseInt(b.duration_mins) || 0), 0);
+      const mins = blocks.filter(b => b.zone === zone.id).reduce((s, b) => s + (parseInt(b.duration_mins) || 0), 0);
       const header = document.querySelector(`[data-zone="${zone.id}"] .zone-mins`);
-      if (header) header.textContent = zoneMins ? zoneMins + ' min' : 'empty';
+      if (header) header.textContent = mins ? mins + ' min' : 'empty';
     });
   }
 
@@ -424,11 +453,14 @@ const SessionBuilder = (() => {
     document.getElementById('session-cancel-btn').addEventListener('click', closeModal);
     document.getElementById('session-save-btn').addEventListener('click', () => saveSession(false));
     document.getElementById('session-template-btn').addEventListener('click', () => saveSession(true));
+    document.getElementById('session-publish-btn').addEventListener('click', publishSession);
     document.getElementById('session-auto-btn').addEventListener('click', autoDistribute);
+    document.getElementById('session-share-copy').addEventListener('click', () => {
+      copyShareLink(shareLink.value.split('/session/')[1]);
+    });
     durInput.addEventListener('input', renderTimeline);
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 
-    // Close picker when clicking outside
     document.addEventListener('click', e => {
       if (activePicker && !e.target.closest('.zone-picker') && !e.target.closest('.zone-add-btn')) {
         document.querySelectorAll('.zone-picker').forEach(p => p.style.display = 'none');
